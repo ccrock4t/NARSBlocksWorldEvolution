@@ -2,14 +2,20 @@
 using System;
 using System.Collections.Generic;
 using Unity.Mathematics;
+using Unity.VisualScripting;
+using UnityEditor;
 using UnityEngine;
 using static MutationHelpers;
 public class NARSGenome
 {
-    const float CHANCE_TO_MUTATE_BELIEF_SET = 0.35f;
+    const float CHANCE_TO_MUTATE_BELIEF_CONTENT = 0.8f;
     const float CHANCE_TO_MUTATE_TRUTH_VALUES = 0.8f;
     const float CHANCE_TO_MUTATE_PERSONALITY_PARAMETERS = 0.8f;
+    const float CHANCE_TO_MUTATE_BELIEFS = 0.8f;
 
+    const bool ALLOW_VARIABLES = true;
+
+    public static bool USE_GENERALIZATION = true;
 
     public enum NARS_Evolution_Type
     {
@@ -23,10 +29,12 @@ public class NARSGenome
         NARS_EVOLVE_CONTINGENCIES_RANDOM_PERSONALITY_LEARNING,
 
         NARS_EVOLVE_PERSONALITY_LEARNING,
-        NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING
+        NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING,
+
+        NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING
     }
 
-    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_CONTINGENCIES_RANDOM_PERSONALITY_NO_LEARNING;
+    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_LEARNING;
 
 
     public static bool RANDOM_PERSONALITY()
@@ -48,8 +56,9 @@ public class NARSGenome
 
     public static bool EVOLVE_PERSONALITY()
     {
-        return NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_LEARNING 
-            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING;
+        return NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_LEARNING
+            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING
+            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING;
     }
 
     public static bool USE_AND_EVOLVE_CONTINGENCIES()
@@ -58,7 +67,8 @@ public class NARSGenome
             || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_CONTINGENCIES_RANDOM_PERSONALITY_NO_LEARNING
             || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_CONTINGENCIES_FIXED_PERSONALITY_LEARNING
             || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_CONTINGENCIES_RANDOM_PERSONALITY_LEARNING
-            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING;
+            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_LEARNING
+            || NARS_EVOLVE_TYPE == NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING;
     }
 
     public struct EvolvableSentence
@@ -74,28 +84,18 @@ public class NARSGenome
     }
 
     public static bool sensorymotor_statements_initialized = false;
-    public static StatementTerm move_op;
-    public static StatementTerm rotate_right_op;
-    //public static StatementTerm rotate_left_op;
-    public static StatementTerm eat_op;
-    public static StatementTerm fight_op;
-    public static StatementTerm mate_op;
-    public static StatementTerm asexual_op;
+    //public static Dictionary<Direction, StatementTerm> move_op_terms = new();
+    //public static Dictionary<Direction, StatementTerm> eat_op_terms = new();
 
-    public static StatementTerm food_far;
-    public static StatementTerm food_medium;
-    public static StatementTerm food_near;
-    public static StatementTerm food_unseen;
-    public static StatementTerm animat_far;
-    public static StatementTerm animat_medium;
-    public static StatementTerm animat_near;
-    public static StatementTerm animat_unseen;
-    public static StatementTerm energy_full;
-    public static StatementTerm self_mated;
+    //public static Dictionary<Direction, StatementTerm> grass_seen_terms = new();
+    //public static Dictionary<Direction, StatementTerm> goat_seen_terms = new();
+    //public static Dictionary<Direction, StatementTerm> water_seen = new();
+
+    public static StatementTerm energy_increasing;
 
 
-    public static StatementTerm[] SENSORY_TERM_SET;
-    public static StatementTerm[] MOTOR_TERM_SET;
+    public static List<StatementTerm> SENSORY_TERM_SET = new();
+    public static List<StatementTerm> MOTOR_TERM_SET = new();
 
     public Dictionary<string, bool> belief_statement_strings = new();
     public List<EvolvableSentence> beliefs;
@@ -114,6 +114,8 @@ public class NARSGenome
         public float Time_Projection_Event;
         public float Time_Projection_Goal;
 
+        public float Generalization_Confidence;
+
         public float Get(int i)
         {
             if (i == 0) return k;
@@ -125,7 +127,8 @@ public class NARSGenome
             else if (i == 6) return Evidential_Base_Length;
             else if (i == 7) return Time_Projection_Event;
             else if (i == 8) return Time_Projection_Goal;
-            else Debug.LogError("error"); 
+            else if (i == 9) return Generalization_Confidence;
+            else Debug.LogError("error");
             return -1;
         }
 
@@ -140,6 +143,7 @@ public class NARSGenome
             else if (i == 6) return "Evidential_Base_Length";
             else if (i == 7) return "Time_Projection_Event";
             else if (i == 8) return "Time_Projection_Goal";
+            else if (i == 9) return "Generalization_Confidence";
             else Debug.LogError("error");
             return "";
         }
@@ -156,23 +160,22 @@ public class NARSGenome
             else if (i == 6) Evidential_Base_Length = (int)value;
             else if (i == 7) Time_Projection_Event = (float)value;
             else if (i == 8) Time_Projection_Goal = (float)value;
+            else if (i == 9) Generalization_Confidence = (float)value;
             else Debug.LogError("error");
         }
 
         public static int GetParameterCount()
         {
-            return 9;
+            return 10;
         }
     }
 
     public PersonalityParameters personality_parameters;
 
-    public const int num_of_personality_parameters = 2;
+
+    const int MAX_INITIAL_BELIEFS = 5;
 
 
-    const int MAX_INITIAL_BELIEFS = 10;
-
-    Judgment move_instinct;
 
     public NARSGenome(List<EvolvableSentence> beliefs_to_clone = null,
         List<EvolvableSentence> goals_to_clone = null,
@@ -181,55 +184,30 @@ public class NARSGenome
     {
         if (!sensorymotor_statements_initialized)
         {
-            move_op = (StatementTerm)Term.from_string("((*,{SELF}) --> move)");
-            rotate_right_op = (StatementTerm)Term.from_string("((*,{SELF}) --> turnRight)");
-            //  rotate_left_op = (StatementTerm)Term.from_string("((*,{SELF}) --> turnLeft)");
-            eat_op = (StatementTerm)Term.from_string("((*,{SELF}) --> eat)");
-            fight_op = (StatementTerm)Term.from_string("((*,{SELF}) --> fight)");
-            mate_op = (StatementTerm)Term.from_string("((*,{SELF}) --> mate)");
-            asexual_op = (StatementTerm)Term.from_string("((*,{SELF}) --> asexual)");
+            //for (int i = 0; i < Enum.GetValues(typeof(Direction)).Length; i++)
+            //{
+            //    var dir = (Direction)i;
+            //    move_op_terms.Add(dir, (StatementTerm)Term.from_string("((*,{SELF}, " + dir + ") --> move)"));
+            //    eat_op_terms.Add(dir, (StatementTerm)Term.from_string("((*,{SELF}, " + dir + ") --> eat)"));
 
-            food_far = (StatementTerm)Term.from_string("({food} --> [far])");
-            food_medium = (StatementTerm)Term.from_string("({food} --> [medium])");
-            food_near = (StatementTerm)Term.from_string("({food} --> [near])");
-            food_unseen = (StatementTerm)Term.from_string("({food} --> [unseen])");
-            animat_far = (StatementTerm)Term.from_string("({animat} --> [far])");
-            animat_medium = (StatementTerm)Term.from_string("({animat} --> [medium])");
-            animat_near = (StatementTerm)Term.from_string("({animat} --> [near])");
-            animat_unseen = (StatementTerm)Term.from_string("({animat} --> [unseen])");
-            energy_full = (StatementTerm)Term.from_string("({ENERGY} --> [FULL])");
-            self_mated = (StatementTerm)Term.from_string("({SELF} --> [mated])");
+            //    MOTOR_TERM_SET.Add(move_op_terms[dir]);
+            //    MOTOR_TERM_SET.Add(eat_op_terms[dir]);
+
+            //    grass_seen_terms.Add(dir, (StatementTerm)Term.from_string("(grass --> " + dir + ")"));
+            //    goat_seen_terms.Add(dir, (StatementTerm)Term.from_string("(goat --> " + dir + ")"));
+            //    //wolf_seen.Add(dir, (StatementTerm)Term.from_string("(wolf --> " + dir + ")"));
+            //    water_seen.Add(dir, (StatementTerm)Term.from_string("(water --> " + dir + ")"));
+
+            //    SENSORY_TERM_SET.Add(grass_seen_terms[dir]);
+            //    SENSORY_TERM_SET.Add(goat_seen_terms[dir]);
+            //    //SENSORY_TERM_SET.Add(wolf_seen[dir]);
+            //    SENSORY_TERM_SET.Add(water_seen[dir]);
+            //}
+            energy_increasing = (StatementTerm)Term.from_string("(ENERGY --> INCREASING)");
+            SENSORY_TERM_SET.Add(energy_increasing);
             sensorymotor_statements_initialized = true;
         }
 
-
-        if (SENSORY_TERM_SET == null)
-        {
-            SENSORY_TERM_SET = new StatementTerm[]
-            {
-                food_far,
-                food_medium,
-                food_near,
-                food_unseen,
-                animat_far,
-                animat_medium,
-                animat_near,
-                animat_unseen,
-                energy_full,
-                self_mated,
-            };
-
-            MOTOR_TERM_SET = new StatementTerm[]
-            {
-                move_op,
-                rotate_right_op,
-             //   rotate_left_op,
-                eat_op,
-                mate_op,
-                asexual_op,
-                fight_op
-            };
-        }
 
         beliefs = new();
         if (USE_AND_EVOLVE_CONTINGENCIES())
@@ -317,6 +295,9 @@ public class NARSGenome
         // Time ProjectionGoal
         personality_parameters.Time_Projection_Goal = 1;
 
+        // Generalization Confidence
+        personality_parameters.Generalization_Confidence = 0.99f;
+
 
         return personality_parameters;
     }
@@ -358,6 +339,10 @@ public class NARSGenome
         // Time ProjectionGoal
         var timeProjectionGoalRange = GetTimeProjectionGoalRange();
         personality_parameters.Time_Projection_Goal = UnityEngine.Random.Range(timeProjectionGoalRange.x, timeProjectionGoalRange.y);
+
+        // Time ProjectionGoal
+        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
+        personality_parameters.Generalization_Confidence = UnityEngine.Random.Range(generalizationConfidenceRange.x, generalizationConfidenceRange.y);
     }
 
 
@@ -375,23 +360,7 @@ public class NARSGenome
         }
 
     }
-    public static void AddIdealBeliefs(List<EvolvableSentence> beliefs)
-    {
-        (StatementTerm, float?, float?)[] statement_strings = new (StatementTerm, float?, float?)[]
-        {
-            (CreateContingencyStatement(food_far,move_op,food_near), null, null),
-            (CreateContingencyStatement(food_near,eat_op,energy_full), null, null),
-            (CreateContingencyStatement(animat_far,move_op,animat_near), null, null),
-            (CreateContingencyStatement(energy_full,asexual_op,self_mated), null, null),
-            (CreateContingencyStatement(Term.from_string("(&/, " + energy_full + "," + animat_near + ")"),mate_op,self_mated), null, null),
-            (CreateContingencyStatement(food_unseen,rotate_right_op,food_far), null, null),
-            (CreateContingencyStatement(food_unseen,move_op,food_far), null, null),
-            (CreateContingencyStatement(animat_unseen,rotate_right_op,animat_far), null, null),
-            (CreateContingencyStatement(animat_unseen,move_op,animat_far), null, null),
-        };
 
-        AddEvolvableSentences(beliefs, statement_strings);
-    }
 
     // create <S &/ ^M =/> P>
     public static StatementTerm CreateContingencyStatement(Term S, Term M, Term P)
@@ -404,7 +373,7 @@ public class NARSGenome
     {
         (StatementTerm, float?, float?)[] statement_strings = new (StatementTerm, float?, float?)[]
         {
-            (energy_full, null, null),
+            (energy_increasing, null, null),
            // (self_mated, null, null),
         };
         AddEvolvableSentences(goals, statement_strings);
@@ -421,9 +390,10 @@ public class NARSGenome
     }
 
     private static Vector2 GetKRange() => new(1f, 10f);
-    private static Vector2 GetTRange() => new(0f, 1f);
+    private static Vector2 GetTRange() => new(0.51f, 1f);
     private static Vector2 GetTimeProjectionEventRange() => new(0.0000001f, 10f);
     private static Vector2 GetTimeProjectionGoalRange() => new(0.0000001f, 10f);
+    private static Vector2 GetGeneralizationConfidenceRange() => new(0.0000001f, 0.99999f);
     private static Vector2 GetForgettingRateRange() => new(1, 250f);
     private static Vector2Int GetAnticipationWindowRange() => new(1, 30);
     private static Vector2Int GetEventBufferCapacityRange() => new(3, 20);
@@ -433,7 +403,7 @@ public class NARSGenome
     // Local helpers
     void MutateFloat(ref float field, Vector2 range, float replaceChance, float mutate_chance)
     {
-        if (UnityEngine.Random.value < (1f- mutate_chance)) return; // certain chance to mutate
+        if (UnityEngine.Random.value < (1f - mutate_chance)) return; // certain chance to mutate
         if (UnityEngine.Random.value < replaceChance)
         {
             field = UnityEngine.Random.Range(range.x, range.y);
@@ -463,104 +433,196 @@ public class NARSGenome
 
 
     static Vector2 truth_range = new(0f, 1f);
+
+
     public void Mutate()
     {
 
         float rnd = 0;
 
+        rnd = UnityEngine.Random.value;
 
-
-        if (USE_AND_EVOLVE_CONTINGENCIES())
+        if (USE_AND_EVOLVE_CONTINGENCIES() && rnd < CHANCE_TO_MUTATE_BELIEFS)
         {
-            rnd = UnityEngine.Random.value;
-            if (rnd < CHANCE_TO_MUTATE_BELIEF_SET)
-            {
-                int rnd2 = UnityEngine.Random.Range(0, 3);
-                if (rnd2 == 0 || this.beliefs.Count == 0)
-                {
-                    // add new belief
-                    AddNewRandomBelief();
-                }
-                else if (rnd2 == 1)
-                {
-                    // remove a belief
-                    RemoveRandomBelief();
-                }
-                else
-                {
-                    // change a belief
-                    ModifyRandomBelief();
-                }
-            }
-
-            rnd = UnityEngine.Random.value;
-            if (rnd < CHANCE_TO_MUTATE_TRUTH_VALUES)
-            {
-                const float CHANCE_TO_REPLACE_TRUTH_VALUE = 0.05f;
-                const float CHANCE_TO_MUTATE = 0.6f;
-                for (int i = 0; i < this.beliefs.Count; i++)
-                {
-                    EvolvableSentence sentence = this.beliefs[i];
-                    MutateFloat(ref sentence.evidence.frequency, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
-                    MutateFloat(ref sentence.evidence.confidence, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
-                    sentence.evidence.confidence = math.clamp(sentence.evidence.confidence, 0.0001f, 0.9999f);
-                    this.beliefs[i] = sentence;
-                }
-            }
-           
+            MutateBeliefs();
         }
 
         rnd = UnityEngine.Random.value;
 
         if (EVOLVE_PERSONALITY() && rnd < CHANCE_TO_MUTATE_PERSONALITY_PARAMETERS)
         {
-            // tweakable: probability to *replace* a field instead of perturbing it
-            const float CHANCE_TO_REPLACE_PARAM = 0.05f;
-
-            const float CHANCE_TO_MUTATE = 0.5f;
-
-            // --- k ---
-            var kRange = GetKRange();
-            MutateFloat(ref this.personality_parameters.k, kRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- T ---
-            var TRange = GetTRange();
-            MutateFloat(ref this.personality_parameters.T, TRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Anticipation window ---
-            var AnticipationWindowRange = GetAnticipationWindowRange();
-            MutateInt(ref this.personality_parameters.Anticipation_Window, AnticipationWindowRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Forgetting rate ---
-            var ForgettingRateRange = GetForgettingRateRange();
-            MutateFloat(ref this.personality_parameters.Forgetting_Rate, ForgettingRateRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Event buffer capacity ---
-            var EventBufferCapacityRange = GetEventBufferCapacityRange();
-            MutateInt(ref this.personality_parameters.Event_Buffer_Capacity, EventBufferCapacityRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Table capacity ---
-            var TableCapacityRange = GetTableCapacityRange();
-            MutateInt(ref this.personality_parameters.Table_Capacity, TableCapacityRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Evidential base length ---
-            var EvidentialBaseLengthRange = GetEvidentialBaseLengthRange();
-            MutateInt(ref this.personality_parameters.Evidential_Base_Length, EvidentialBaseLengthRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Time Projection Event ---
-            var timeProjectionEventRange = GetTimeProjectionEventRange();
-            MutateFloat(ref this.personality_parameters.Time_Projection_Event, timeProjectionEventRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
-
-            // --- Time Projection Goal ---
-            var timeProjectionGoalRange = GetTimeProjectionGoalRange();
-            MutateFloat(ref this.personality_parameters.Time_Projection_Goal, timeProjectionGoalRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+            MutatePersonalityParameters();
         }
 
     }
 
+    public void MutateBeliefs()
+    {
+        float rnd = UnityEngine.Random.value;
+        if (rnd < CHANCE_TO_MUTATE_BELIEF_CONTENT)
+        {
+            if (ALLOW_VARIABLES)
+            {
+                int r = UnityEngine.Random.Range(0, 100); // 0–99
+
+                if (r < 25)
+                {
+                    AddNewRandomBelief();
+                }
+                else if (r < 50)
+                {
+                    RemoveRandomBelief();
+                }
+                else if (r < 75)
+                {
+                    ModifyRandomBelief();
+                }
+                else
+                {
+
+                    ToggleVariableRandomBelief();
+                }
+            }
+            else
+            {
+                int r = UnityEngine.Random.Range(0, 100); // 0–99
+
+                if (r < 33)
+                {
+                    AddNewRandomBelief();
+                }
+                else if (r < 66)
+                {
+                    RemoveRandomBelief();
+                }
+                else
+                {
+                    ModifyRandomBelief();
+                }
+            }
 
 
- 
+        }
+
+        rnd = UnityEngine.Random.value;
+        if (rnd < CHANCE_TO_MUTATE_TRUTH_VALUES)
+        {
+            const float CHANCE_TO_REPLACE_TRUTH_VALUE = 0.05f;
+            const float CHANCE_TO_MUTATE = 0.5f;
+            for (int i = 0; i < this.beliefs.Count; i++)
+            {
+                EvolvableSentence sentence = this.beliefs[i];
+                MutateFloat(ref sentence.evidence.frequency, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
+                MutateFloat(ref sentence.evidence.confidence, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
+                sentence.evidence.confidence = math.clamp(sentence.evidence.confidence, 0.0001f, 0.9999f);
+                this.beliefs[i] = sentence;
+            }
+        }
+    }
+
+    private void ToggleVariableRandomBelief()
+    {
+        if (this.beliefs.Count == 0) return;
+        int rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
+        EvolvableSentence belief = this.beliefs[rnd_idx];
+
+        string old_statement_string = belief.statement.ToString();
+
+        // (S &/ ^M =/> P)
+        StatementTerm implication = belief.statement;
+
+        CompoundTerm subject = (CompoundTerm)implication.get_subject_term();
+        StatementTerm predicate = (StatementTerm)implication.get_predicate_term();
+
+        StatementTerm new_statement;
+
+        StatementTerm S = (StatementTerm)subject.subterms[0];
+        StatementTerm M = (StatementTerm)subject.subterms[1];
+
+        Term S_predicate = S.get_predicate_term();
+        Term M_argument = ((CompoundTerm)M.get_subject_term()).subterms[1];
+        StatementTerm new_S = null;
+        StatementTerm new_M = null;
+        if (S_predicate is VariableTerm && M_argument is VariableTerm)
+        {
+            //// turn from variable into concrete term
+            //new_S = new StatementTerm(S.get_subject_term(), Term.from_string(AlpineGridManager.GetRandomDirectionString()), Copula.Inheritance);
+            //new_M = new StatementTerm(Term.from_string("(*,{SELF}," + AlpineGridManager.GetRandomDirectionString() + ")"), M.get_predicate_term(), Copula.Inheritance);
+        }
+        else if (S_predicate is AtomicTerm && M_argument is AtomicTerm)
+        {
+            // turn from concrete term into variable
+            new_S = new StatementTerm(S.get_subject_term(), new VariableTerm("x", VariableTerm.VariableType.Dependent), Copula.Inheritance);
+            new_M = new StatementTerm(Term.from_string("(*,{SELF},#x)"), M.get_predicate_term(), Copula.Inheritance);
+        }
+        else
+        {
+            Debug.LogError("Error");
+            return;
+        }
+
+        new_statement = CreateContingencyStatement(new_S, new_M, predicate);
+        belief.statement = new_statement;
+        string new_statement_string = new_statement.ToString();
+        if (belief_statement_strings.ContainsKey(new_statement_string)) return;
+
+        belief_statement_strings.Remove(old_statement_string);
+        belief_statement_strings.Add(new_statement_string, true);
+
+        this.beliefs[rnd_idx] = belief;
+    }
+
+    public void MutatePersonalityParameters()
+    {
+        // tweakable: probability to *replace* a field instead of perturbing it
+        const float CHANCE_TO_REPLACE_PARAM = 0.05f;
+
+        const float CHANCE_TO_MUTATE = 0.6f;
+
+        // --- k ---
+        var kRange = GetKRange();
+        MutateFloat(ref this.personality_parameters.k, kRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- T ---
+        var TRange = GetTRange();
+        MutateFloat(ref this.personality_parameters.T, TRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Anticipation window ---
+        var AnticipationWindowRange = GetAnticipationWindowRange();
+        MutateInt(ref this.personality_parameters.Anticipation_Window, AnticipationWindowRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Forgetting rate ---
+        var ForgettingRateRange = GetForgettingRateRange();
+        MutateFloat(ref this.personality_parameters.Forgetting_Rate, ForgettingRateRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Event buffer capacity ---
+        var EventBufferCapacityRange = GetEventBufferCapacityRange();
+        MutateInt(ref this.personality_parameters.Event_Buffer_Capacity, EventBufferCapacityRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Table capacity ---
+        var TableCapacityRange = GetTableCapacityRange();
+        MutateInt(ref this.personality_parameters.Table_Capacity, TableCapacityRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Evidential base length ---
+        var EvidentialBaseLengthRange = GetEvidentialBaseLengthRange();
+        MutateInt(ref this.personality_parameters.Evidential_Base_Length, EvidentialBaseLengthRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Time Projection Event ---
+        var timeProjectionEventRange = GetTimeProjectionEventRange();
+        MutateFloat(ref this.personality_parameters.Time_Projection_Event, timeProjectionEventRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Time Projection Goal ---
+        var timeProjectionGoalRange = GetTimeProjectionGoalRange();
+        MutateFloat(ref this.personality_parameters.Time_Projection_Goal, timeProjectionGoalRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // --- Time Projection Goal ---
+        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
+        MutateFloat(ref this.personality_parameters.Generalization_Confidence, generalizationConfidenceRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+    }
+
+
+
+
     public void AddNewRandomBelief()
     {
         StatementTerm statement = CreateContingencyStatement(GetRandomSensoryTerm(), GetRandomMotorTerm(), GetRandomSensoryTerm());
@@ -583,7 +645,7 @@ public class NARSGenome
 
     public void RemoveRandomBelief()
     {
-        if(this.beliefs.Count == 0) return;
+        if (this.beliefs.Count == 0) return;
         int rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
         var belief = this.beliefs[rnd_idx];
         this.beliefs.RemoveAt(rnd_idx);
@@ -597,12 +659,13 @@ public class NARSGenome
         EvolvableSentence belief = this.beliefs[rnd_idx];
 
         string old_statement_string = belief.statement.ToString();
-    
+
         // (S &/ ^M =/> P)
         StatementTerm implication = belief.statement;
 
-   
         CompoundTerm subject = (CompoundTerm)implication.get_subject_term();
+        StatementTerm S = (StatementTerm)subject.subterms[0];
+        StatementTerm M = (StatementTerm)subject.subterms[1];
         StatementTerm predicate = (StatementTerm)implication.get_predicate_term();
 
         StatementTerm new_statement;
@@ -610,12 +673,24 @@ public class NARSGenome
         if (rnd == 0)
         {
             // replace S
-            new_statement = CreateContingencyStatement(GetRandomSensoryTerm(), subject.subterms[1], predicate);
+            var randomS = GetRandomSensoryTerm();
+            if (M.contains_variable())
+            {
+                randomS = new StatementTerm(randomS.get_subject_term(), new VariableTerm("x", VariableTerm.VariableType.Dependent), Copula.Inheritance);
+            }
+
+            new_statement = CreateContingencyStatement(randomS, subject.subterms[1], predicate);
+
         }
         else if (rnd == 1)
         {
             // replace M
-            new_statement = CreateContingencyStatement(subject.subterms[0], GetRandomMotorTerm(), predicate);
+            var randomM = GetRandomMotorTerm();
+            if (S.contains_variable())
+            {
+                randomM = new StatementTerm(Term.from_string("(*,{SELF},#x)"), randomM.get_predicate_term(), Copula.Inheritance);
+            }
+            new_statement = CreateContingencyStatement(subject.subterms[0], randomM, predicate);
         }
         else //if (rnd == 2)
         {
@@ -623,10 +698,12 @@ public class NARSGenome
             new_statement = CreateContingencyStatement(subject.subterms[0], subject.subterms[1], GetRandomSensoryTerm());
         }
 
+
+
         belief.statement = new_statement;
         string new_statement_string = new_statement.ToString();
         if (belief_statement_strings.ContainsKey(new_statement_string)) return;
-        
+
         belief_statement_strings.Remove(old_statement_string);
         belief_statement_strings.Add(new_statement_string, true);
 
@@ -635,13 +712,14 @@ public class NARSGenome
 
     public StatementTerm GetRandomSensoryTerm()
     {
-        int rnd = UnityEngine.Random.Range(0, SENSORY_TERM_SET.Length);
+        if (UnityEngine.Random.value < 0.05) return energy_increasing;
+        int rnd = UnityEngine.Random.Range(0, SENSORY_TERM_SET.Count);
         return SENSORY_TERM_SET[rnd];
     }
 
     public StatementTerm GetRandomMotorTerm()
     {
-        int rnd = UnityEngine.Random.Range(0, MOTOR_TERM_SET.Length);
+        int rnd = UnityEngine.Random.Range(0, MOTOR_TERM_SET.Count);
         return MOTOR_TERM_SET[rnd];
     }
 
@@ -664,7 +742,7 @@ public class NARSGenome
     public (NARSGenome, NARSGenome) Reproduce(NARSGenome parent2genome)
     {
         NARSGenome parent1 = this;
-        NARSGenome parent2 =  (NARSGenome)parent2genome;
+        NARSGenome parent2 = (NARSGenome)parent2genome;
         int longer_array = math.max(parent1.beliefs.Count, parent2.beliefs.Count);
 
         NARSGenome offspring1 = new();
@@ -718,7 +796,7 @@ public class NARSGenome
         NARSGenome genome1 = this;
         NARSGenome genome2 = (NARSGenome)other_genome;
 
-        for(int i=0; i < genome1.beliefs.Count; i++)
+        for (int i = 0; i < genome1.beliefs.Count; i++)
         {
             var belief1 = genome1.beliefs[i];
             if (!genome2.belief_statement_strings.ContainsKey(belief1.statement.ToString()))
@@ -727,7 +805,7 @@ public class NARSGenome
             }
         }
 
-        
+
         for (int j = 0; j < genome2.beliefs.Count; j++)
         {
             var belief2 = genome2.beliefs[j];
