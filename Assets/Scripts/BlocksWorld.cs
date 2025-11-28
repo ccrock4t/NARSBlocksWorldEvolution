@@ -4,7 +4,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-public class BlocksWorldManager : MonoBehaviour
+public class BlocksWorld : MonoBehaviour
 {
     /*
      * Ontology:
@@ -48,6 +48,7 @@ public class BlocksWorldManager : MonoBehaviour
 
     private void Start()
     {
+        canvas = this.gameObject;
         if (blockPrefab == null)
         {
             Debug.LogError("BlocksWorldManager: blockPrefab is not assigned.");
