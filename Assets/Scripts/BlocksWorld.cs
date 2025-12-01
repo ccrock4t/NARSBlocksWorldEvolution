@@ -16,7 +16,7 @@ public class BlocksWorld : MonoBehaviour
     [Header("Block Settings")]
     [SerializeField] private GameObject blockPrefab;
     [SerializeField] private GameObject canvas;
-    [SerializeField][Range(1, 10)] private int numberOfBlocks = 3;
+    public static int numberOfBlocks = 3;
 
     // Canvas-space spacing (in pixels if using Screen Space)
     [SerializeField] private float horizontalSpacing = 150f;
@@ -46,7 +46,7 @@ public class BlocksWorld : MonoBehaviour
     // Constant for table representation
     private const string TABLE = "Table";
 
-    private void Start()
+    public void Initialize()
     {
         canvas = this.gameObject;
         if (blockPrefab == null)
@@ -62,10 +62,43 @@ public class BlocksWorld : MonoBehaviour
         }
 
         InitializeBlocks();
-        GenerateRandomState(on, clear);        // current world
-        LayoutBlocksFromState(on);             // position GameObjects on canvas
-        GenerateRandomState(goalOn, goalClear); // separate random goal
-        PrintGoalState();
+
+        // 1. Generate goal state
+        GenerateNonFlatGoal();
+
+        // 2. Generate an initial state that is as far as possible from the goal
+        GenerateFarInitialFromGoal();
+
+        // 3. Lay out initial state and print goal
+        LayoutBlocksFromState(on);
+        GetGoalState();
+    }
+    private void GenerateNonFlatGoal()
+    {
+        while (true)
+        {
+            GenerateRandomState(goalOn, goalClear);
+
+            bool allOnTable = true;
+            foreach (var b in blocks.Keys)
+            {
+                if (goalOn[b] != TABLE)
+                {
+                    allOnTable = false;
+                    break;
+                }
+            }
+
+            if (!allOnTable)
+                break; // accept this goal
+        }
+    }
+
+
+    public static string GetBlockName(int i)
+    {
+        char labelChar = (char)('A' + i);
+        return labelChar.ToString();
     }
 
     #region Initialization
@@ -78,8 +111,7 @@ public class BlocksWorld : MonoBehaviour
 
         for (int i = 0; i < numberOfBlocks; i++)
         {
-            char labelChar = (char)('A' + i);
-            string blockName = labelChar.ToString();
+            string blockName = GetBlockName(i);
 
             GameObject blockGO = Instantiate(blockPrefab, Vector3.zero, Quaternion.identity, canvas.transform);
             blockGO.name = $"Block_{blockName}";
@@ -343,6 +375,95 @@ public class BlocksWorld : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Counts how many On(x, y) facts match between two states.
+    /// Higher score = more similar stack structure.
+    /// </summary>
+    private int CountMatchingOn(
+        Dictionary<string, string> onA,
+        Dictionary<string, string> onB)
+    {
+        int score = 0;
+
+        foreach (var kvp in blocks)
+        {
+            string block = kvp.Key;
+
+            if (onA.TryGetValue(block, out string supportA) &&
+                onB.TryGetValue(block, out string supportB) &&
+                supportA == supportB)
+            {
+                score++;
+            }
+        }
+
+        return score;
+    }
+
+
+    /// <summary>
+    /// Fill 'on' and 'clear' with a random state that is as far as possible
+    /// from the current goalOn/goalClear according to CountMatchingPredicates.
+    /// </summary>
+    private void GenerateFarInitialFromGoal()
+    {
+        const int maxTries = 100000;  // tweak this if you like
+        int bestScore = int.MaxValue;
+
+        // Temporary best copies
+        Dictionary<string, string> bestOn = new Dictionary<string, string>();
+        HashSet<string> bestClear = new HashSet<string>();
+
+        for (int i = 0; i < maxTries; i++)
+        {
+            // Generate a random candidate into the real 'on' and 'clear'
+            GenerateRandomState(on, clear);
+
+            int score = CountMatchingOn(on, goalOn);
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+
+                // Copy current 'on' and 'clear' into bestOn/bestClear
+                bestOn.Clear();
+                foreach (var kvp in on)
+                {
+                    bestOn[kvp.Key] = kvp.Value;
+                }
+
+                bestClear = new HashSet<string>(clear);
+
+                // Perfect opposition under this metric – stop early
+                if (bestScore == 0)
+                    break;
+            }
+        }
+
+        if(bestScore != 0)
+        {
+            Debug.LogError("initial state has some correct states");
+        }
+
+        // Copy best back into the actual current state
+        on.Clear();
+        foreach (var kvp in bestOn)
+        {
+            on[kvp.Key] = kvp.Value;
+        }
+
+        clear.Clear();
+        foreach (var b in bestClear)
+        {
+            clear.Add(b);
+        }
+
+        Debug.Log($"Chosen initial state with similarity score {bestScore} (0 = completely opposite under our metric).");
+    }
+
+
+
+
     #endregion
 
     #region Actions: Stack and Unstack
@@ -416,11 +537,13 @@ public class BlocksWorld : MonoBehaviour
 
     #region Goal state printing
 
-    private void PrintGoalState()
+    List<StatementTerm> goal_states;
+    public List<StatementTerm> GetGoalState()
     {
         StringBuilder sb = new StringBuilder();
         sb.Append("Random goal state (FOL): ");
 
+        goal_states = new List<StatementTerm>(blocks.Count);
         // On / OnTable for EVERY block
         foreach (var kvp in blocks)
         {
@@ -433,25 +556,78 @@ public class BlocksWorld : MonoBehaviour
             }
 
             if (support == TABLE)
-                sb.Append($" OnTable({block})");
+            {
+                sb.Append($" ({block} --> OnTable)");
+                goal_states.Add(StatementTerm.from_string($"({block} --> OnTable)"));
+            }
+
             else
-                sb.Append($" On({block}, {support})");
+            {
+                sb.Append($" ((*,{block}, {support}) --> On)");
+                goal_states.Add(StatementTerm.from_string($"((*,{block}, {support}) --> On)"));
+            }
+
         }
 
-        // Clear info for EVERY block (either Clear or ¬Clear)
+        //// Clear info for EVERY block (either Clear or ¬Clear)
+        //foreach (var kvp in blocks)
+        //{
+        //    string block = kvp.Key;
+
+        //    if (goalClear.Contains(block))
+        //        sb.Append($" ({block} --> Clear)");
+        //}
+
+        Debug.Log(sb.ToString());
+
+        return goal_states;
+    }
+
+    #region Current state printing
+
+    List<StatementTerm> current_states;
+
+    public List<StatementTerm> GetCurrentState()
+    {
+        current_states = new List<StatementTerm>(blocks.Count);
+
+        // On / OnTable for EVERY block in the *current* state
         foreach (var kvp in blocks)
         {
             string block = kvp.Key;
 
-            if (goalClear.Contains(block))
-                sb.Append($" Clear({block})");
+            if (!on.TryGetValue(block, out string support))
+            {
+                // If the current 'on' mapping doesn't have this block yet, skip
+                continue;
+            }
+
+            if (support == TABLE)
+            {
+                current_states.Add(StatementTerm.from_string($"({block} --> OnTable)"));
+            }
             else
-                sb.Append($" ¬Clear({block})");
+            {
+                current_states.Add(StatementTerm.from_string($"((*,{block}, {support}) --> On)"));
+            }
         }
 
-        Debug.Log(sb.ToString());
+        //// Clear info for EVERY block (if you want it, same style as goal)
+        //foreach (var kvp in blocks)
+        //{
+        //    string block = kvp.Key;
+        //
+        //    if (clear.Contains(block))
+        //    {
+        //        sb.Append($" ({block} --> Clear)");
+        //        current_states.Add(StatementTerm.from_string($"({block} --> Clear)"));
+        //    }
+        //}
+
+        return current_states;
     }
 
+    #endregion
 
 
     #endregion

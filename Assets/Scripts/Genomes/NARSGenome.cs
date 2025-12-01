@@ -13,9 +13,10 @@ public class NARSGenome
     const float CHANCE_TO_MUTATE_PERSONALITY_PARAMETERS = 0.8f;
     const float CHANCE_TO_MUTATE_BELIEFS = 0.8f;
 
-    const bool ALLOW_VARIABLES = true;
+    const bool ALLOW_VARIABLES = false;
+    const bool ALLOW_COMPOUNDS = false;
 
-    public static bool USE_GENERALIZATION = true;
+    public static bool USE_GENERALIZATION = false;
 
     public enum NARS_Evolution_Type
     {
@@ -89,9 +90,7 @@ public class NARSGenome
 
     //public static Dictionary<Direction, StatementTerm> grass_seen_terms = new();
     //public static Dictionary<Direction, StatementTerm> goat_seen_terms = new();
-    //public static Dictionary<Direction, StatementTerm> water_seen = new();
-
-    public static StatementTerm energy_increasing;
+    //public static Dictionary<Direction, StatementTerm> water_seen = new();s
 
 
     public static List<StatementTerm> SENSORY_TERM_SET = new();
@@ -184,31 +183,27 @@ public class NARSGenome
     {
         if (!sensorymotor_statements_initialized)
         {
-            //for (int i = 0; i < Enum.GetValues(typeof(Direction)).Length; i++)
-            //{
-            //    var dir = (Direction)i;
-            //    move_op_terms.Add(dir, (StatementTerm)Term.from_string("((*,{SELF}, " + dir + ") --> move)"));
-            //    eat_op_terms.Add(dir, (StatementTerm)Term.from_string("((*,{SELF}, " + dir + ") --> eat)"));
+            for (int i = 0; i < BlocksWorld.numberOfBlocks; i++)
+            {
+                var blockName1 = BlocksWorld.GetBlockName(i);
 
-            //    MOTOR_TERM_SET.Add(move_op_terms[dir]);
-            //    MOTOR_TERM_SET.Add(eat_op_terms[dir]);
+                SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> Clear)"));
+                SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> OnTable)"));
+                MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + ") --> UNSTACK)"));
+                if (i < BlocksWorld.numberOfBlocks - 1)
+                {
+                    var blockName2 = BlocksWorld.GetBlockName(i + 1);
+                    SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName1},{blockName2}) --> On)"));
+                    SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName2},{blockName1}) --> On)"));
 
-            //    grass_seen_terms.Add(dir, (StatementTerm)Term.from_string("(grass --> " + dir + ")"));
-            //    goat_seen_terms.Add(dir, (StatementTerm)Term.from_string("(goat --> " + dir + ")"));
-            //    //wolf_seen.Add(dir, (StatementTerm)Term.from_string("(wolf --> " + dir + ")"));
-            //    water_seen.Add(dir, (StatementTerm)Term.from_string("(water --> " + dir + ")"));
-
-            //    SENSORY_TERM_SET.Add(grass_seen_terms[dir]);
-            //    SENSORY_TERM_SET.Add(goat_seen_terms[dir]);
-            //    //SENSORY_TERM_SET.Add(wolf_seen[dir]);
-            //    SENSORY_TERM_SET.Add(water_seen[dir]);
-            //}
-            energy_increasing = (StatementTerm)Term.from_string("(ENERGY --> INCREASING)");
-            SENSORY_TERM_SET.Add(energy_increasing);
+                    MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + "," + blockName2 + ") --> STACK)"));
+                    MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName2 + "," + blockName1 + ") --> STACK)"));
+                }
+            }
             sensorymotor_statements_initialized = true;
         }
 
-
+        goals = new();
         beliefs = new();
         if (USE_AND_EVOLVE_CONTINGENCIES())
         {
@@ -228,17 +223,6 @@ public class NARSGenome
                     AddNewBelief(belief);
                 }
             }
-        }
-
-
-        if (goals_to_clone == null)
-        {
-            goals = new();
-            AddIdealGoals(goals);
-        }
-        else
-        {
-            goals = new(goals_to_clone);
         }
 
         this.personality_parameters = new();
@@ -369,15 +353,6 @@ public class NARSGenome
         return (StatementTerm)Term.from_string("((&/," + S.ToString() + "," + M.ToString() + ") =/> " + P.ToString() + ")");
     }
 
-    public static void AddIdealGoals(List<EvolvableSentence> goals)
-    {
-        (StatementTerm, float?, float?)[] statement_strings = new (StatementTerm, float?, float?)[]
-        {
-            (energy_increasing, null, null),
-           // (self_mated, null, null),
-        };
-        AddEvolvableSentences(goals, statement_strings);
-    }
 
     public NARSGenome Clone()
     {
@@ -712,7 +687,7 @@ public class NARSGenome
 
     public StatementTerm GetRandomSensoryTerm()
     {
-        if (UnityEngine.Random.value < 0.05) return energy_increasing;
+        //if (UnityEngine.Random.value < 0.05) return energy_increasing;
         int rnd = UnityEngine.Random.Range(0, SENSORY_TERM_SET.Count);
         return SENSORY_TERM_SET[rnd];
     }
@@ -818,7 +793,16 @@ public class NARSGenome
         return distance;
     }
 
-
+    internal void SetIdealGoal(BlocksWorld blocksworld)
+    {
+        goals.Clear();
+        List<(StatementTerm, float?, float?)> statement_strings = new();
+        foreach(var goal_statement in blocksworld.GetGoalState())
+        {
+            statement_strings.Add((goal_statement, null, null));
+        }
+        AddEvolvableSentences(goals, statement_strings.ToArray());
+    }
 }
 
 public static class MutationHelpers
