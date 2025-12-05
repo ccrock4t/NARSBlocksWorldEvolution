@@ -472,7 +472,7 @@ public class NARS
                     StatementTerm first_subterm_statement = (StatementTerm)((CompoundTerm)statement).subterms[0];
                     Concept first_subterm_concept = this.memory.peek_concept(first_subterm_statement);
                     Term sensory_predicate = first_subterm_statement.get_predicate_term();
-                    AtomicTerm sensory_subject = (AtomicTerm)first_subterm_statement.get_subject_term();
+                    Term sensory_subject = first_subterm_statement.get_subject_term();
                     Judgment first_subterm_belief = null;
                     if (sensory_predicate is VariableTerm)
                     {

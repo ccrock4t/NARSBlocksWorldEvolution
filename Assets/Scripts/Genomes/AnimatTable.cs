@@ -283,4 +283,34 @@ public class AnimatTable
         Tournament // k are selected, then the #1 is selected
     }
 
+    public NARSGenome[] GetNewAnimatReproducedFromTable(bool sexual)
+    {
+        (NARSGenome parent1, int parent1_idx) = this.PeekProbabilistic();
+
+        NARSGenome[] results;
+        if (sexual)
+        {
+            results = new NARSGenome[2];
+            // sexual
+            int ignore_idx = -1;
+            ignore_idx = parent1_idx; // same table, so dont pick the same animat
+            (NARSGenome parent2, int parent2_idx) = this.PeekProbabilistic(ignore_idx: ignore_idx);
+
+            NARSGenome offspring1_genome;
+            NARSGenome offspring2_genome;
+            (offspring1_genome, offspring2_genome) = parent1.Reproduce(parent2);
+
+            results[0] = offspring1_genome;
+            results[1] = offspring2_genome;
+        }
+        else
+        {
+            results = new NARSGenome[1];
+            // asexual
+            NARSGenome cloned_genome = parent1.Clone();
+            cloned_genome.Mutate();
+            results[0] = cloned_genome;
+        }
+        return results;
+    }
 }

@@ -8,6 +8,8 @@ public class NARSBody
     internal int timesteps_alive;
     NARS nars;
 
+    int successful_moves = 0 ;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public NARSBody(NARS nars)
     {
@@ -44,15 +46,24 @@ public class NARSBody
         if (highest_desire_motor_op == null) return;
         CompoundTerm subject_term = (CompoundTerm)highest_desire_motor_op.get_subject_term();
         var term1 = subject_term.subterms[1];
-       
+        bool motor_success = false;
         if (highest_desire_motor_op.get_predicate_term().term_string == "STACK")
         {
             var term2 = subject_term.subterms[2];
-            blocksWorld.Stack(term1.term_string, term2.term_string);
+            motor_success = blocksWorld.Stack(term1.term_string, term2.term_string);
         }else if (highest_desire_motor_op.get_predicate_term().term_string == "UNSTACK")
         {
-            blocksWorld.Unstack(term1.term_string);
+            motor_success = blocksWorld.Unstack(term1.term_string);
         }
+        if (motor_success)
+        {
+            successful_moves++;
+        }
+    }
 
+
+    public float GetFitness()
+    {
+        return successful_moves;
     }
 }

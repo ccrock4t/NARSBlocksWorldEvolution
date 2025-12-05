@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using TMPro;
+using Unity.Mathematics;
 using UnityEngine;
 using static UnityEngine.Rendering.DebugUI;
 
@@ -35,21 +37,22 @@ public class BlocksWorldGridManager : MonoBehaviour
         public NARS nars;
         public NARSBody narsBody;
 
-        public Agent(BlocksWorld blocksworld)
+        public Agent(BlocksWorld blocksworld, NARSGenome gene)
         {
-            genome = new NARSGenome();
-            genome.SetIdealGoal(blocksworld);
+            if(gene == null)
+            {
+                genome = new NARSGenome();
+            }
+            else
+            {
+                genome = gene;
+            }
+
+             genome.SetIdealGoal(blocksworld);
             nars = new NARS(genome);
             narsBody = new(nars);
         }
 
-        public Agent(BlocksWorld blocksworld,NARSGenome genome)
-        {
-            this.genome = genome;
-            genome.SetIdealGoal(blocksworld);
-            nars = new NARS(genome);
-            narsBody = new(nars);
-        }
     }
 
     public class BlocksWorldInstance
@@ -57,9 +60,9 @@ public class BlocksWorldGridManager : MonoBehaviour
         public BlocksWorld blocksworld;
         public Agent agent;
 
-        public BlocksWorldInstance(BlocksWorld blocksworld)
+        public BlocksWorldInstance(BlocksWorld blocksworld, NARSGenome gene)
         {
-            this.agent = new Agent(blocksworld);
+            this.agent = new Agent(blocksworld, gene);
             this.blocksworld = blocksworld;
         }
     }
@@ -69,11 +72,17 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private void Start()
     {
+        table = new(AnimatTable.SortingRule.sorted, AnimatTable.ScoreType.objective_fitness);
+        SpawnGeneration(true);
+    }
+
+    public void SpawnGeneration(bool initial)
+    {
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
             {
-         
+
                 // instantiate one BlocksWorld
                 BlocksWorld world = Instantiate(worldPrefab, parent).GetComponent<BlocksWorld>();
                 world.Initialize();
@@ -89,11 +98,39 @@ public class BlocksWorldGridManager : MonoBehaviour
                 // OPTIONAL: tweak per-world parameters
                 // world.numberOfBlocks = 3;  // if you expose it as public or property
 
-                BlocksWorldInstance worldInstance = new(world);
+                NARSGenome genome;
+                if (initial)
+                {
+                    genome = new();
+                }
+                else
+                {
+                    int sexual = UnityEngine.Random.Range(0, 2);
+                    NARSGenome[] new_genomes = table.GetNewAnimatReproducedFromTable(sexual == 1);
+                    genome = new_genomes[0];
+                }
+
+                BlocksWorldInstance worldInstance = new(world, genome);
                 population.Add(worldInstance);
             }
         }
     }
+
+    public void FinishGeneration()
+    {
+        foreach(var instance in population)
+        {
+            float fitness = instance.agent.narsBody.GetFitness();
+            high_score = math.max(fitness, high_score);
+            table.TryAdd(fitness, instance.agent.genome);
+            Destroy(instance.blocksworld.gameObject);
+        }
+        population.Clear();
+    }
+
+    [SerializeField] TextMeshProUGUI TimestepTxt;
+    [SerializeField] TextMeshProUGUI HighScoreTxt;
+    float high_score;
 
     void FixedUpdate()
     {
@@ -103,25 +140,22 @@ public class BlocksWorldGridManager : MonoBehaviour
         {
             _fixedUpdateCounter = 0;   // reset for next tick
             timestep++;
-
-            StepSimulation();
-
-            //int guard = 0;
-            //while (population.Count < NUM_OF_NARS_AGENTS)
-            //{
-            //    if (!SpawnNewAgent()) break;
-            //    if (++guard > 2000) break; // extra safety guard
-            //}
-
-           // UpdateUI();
-           // WriteCsvRow();   // still runs on each tick
+            UpdateUI();
+  
+            if (timestep < 10)
+            {
+                StepSimulation();
+            }
+            else
+            {
+                FinishGeneration();
+                SpawnGeneration(false);
+                timestep = 0;
+            }
+            // WriteCsvRow();   // still runs on each tick
         }
     }
 
-    private bool SpawnNewAgent()
-    {
-        throw new NotImplementedException();
-    }
 
     void StepSimulation()
     {
@@ -131,36 +165,27 @@ public class BlocksWorldGridManager : MonoBehaviour
         {
             var agent = blocksWorldInstance.agent;
             var blocksworld = blocksWorldInstance.blocksworld;
-            if (agent.narsBody.remaining_life <= 0)
+ 
+            for (int i = 0; i < 4; i++)
             {
-                KillAgent(blocksWorldInstance);
-            }
-            else
-            {
-                for (int i = 0; i < 4; i++)
+                agent.narsBody.Sense(blocksworld);
+                // enter instinctual goals
+                foreach (var goal_data in agent.nars.genome.goals)
                 {
-                    agent.narsBody.Sense(blocksworld);
-                    // enter instinctual goals
-                    foreach (var goal_data in agent.nars.genome.goals)
-                    {
-                        var goal = new Goal(agent.nars, goal_data.statement, goal_data.evidence, occurrence_time: agent.nars.current_cycle_number);
-                        agent.nars.SendInput(goal);
-                    }
-                    agent.nars.do_working_cycle();
+                    var goal = new Goal(agent.nars, goal_data.statement, goal_data.evidence, occurrence_time: agent.nars.current_cycle_number);
+                    agent.nars.SendInput(goal);
                 }
-                agent.narsBody.MotorAct(blocksworld);
-
-                agent.narsBody.timesteps_alive++;
-               // agent.narsBody.remaining_life--;
-
+                agent.nars.do_working_cycle();
             }
+            agent.narsBody.MotorAct(blocksworld);
+
+            agent.narsBody.timesteps_alive++;
+            // agent.narsBody.remaining_life--;
+
+            
         }
     }
 
-    private void KillAgent(BlocksWorldInstance blocksworldinstance)
-    {
-        throw new NotImplementedException();
-    }
 
     void WriteCsvRow()
     {
@@ -241,9 +266,12 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     public void UpdateUI()
     {
-       // timestepTXT.text = "Timestep: " + timestep;
-       // scoreTXT.text = "High Score: " + high_score;
-       // genomeSizeTXT.text = "Largest genome: " + largest_genome;
+        TimestepTxt.text = "Timestep: " + timestep;
+        HighScoreTxt.text = "High Score: " + high_score;
+        // timestepTXT.text = "Timestep: " + timestep;
+        // scoreTXT.text = "High Score: " + high_score;
+        // genomeSizeTXT.text = "Largest genome: " + largest_genome;
     }
+
 
 }

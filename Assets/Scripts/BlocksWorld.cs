@@ -486,6 +486,12 @@ public class BlocksWorld : MonoBehaviour
             return false;
         }
 
+        if (!OnPredicate(top, bottom))
+        {
+            Debug.LogWarning($"Stack invalid: blocks already stacked {top}, {bottom}.");
+            return false;
+        }
+
         if (!ClearPredicate(top) || !ClearPredicate(bottom))
         {
             Debug.LogWarning($"Stack invalid: both {top} and {bottom} must be Clear.");
@@ -519,6 +525,12 @@ public class BlocksWorld : MonoBehaviour
         if (!ClearPredicate(block))
         {
             Debug.LogWarning($"Unstack invalid: block {block} must be Clear.");
+            return false;
+        }
+
+        if (OnTablePredicate(block))
+        {
+            Debug.LogWarning($"Unstack invalid: block {block} is already on Table.");
             return false;
         }
 

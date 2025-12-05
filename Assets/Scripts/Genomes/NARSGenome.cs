@@ -15,7 +15,6 @@ public class NARSGenome
 
     const bool ALLOW_VARIABLES = false;
     const bool ALLOW_COMPOUNDS = false;
-
     public static bool USE_GENERALIZATION = false;
 
     public enum NARS_Evolution_Type
@@ -35,7 +34,7 @@ public class NARSGenome
         NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING
     }
 
-    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_LEARNING;
+    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING;
 
 
     public static bool RANDOM_PERSONALITY()
