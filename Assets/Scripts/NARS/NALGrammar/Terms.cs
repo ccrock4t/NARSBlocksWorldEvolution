@@ -511,6 +511,11 @@ public class CompoundTerm : Term
 
             interval_list: array of time interval_list between statements (only used for sequential conjunction)
         */
+        if (TermConnectorMethods.is_order_invariant((TermConnector)term_connector))
+        {
+            // order doesn't matter, alphabetize so the system can recognize the same term
+            subterms.Sort((x, y) => x.ToString().CompareTo(y.ToString()));
+        }
         this.subterms = subterms;
         this.connector = term_connector;
         this.intervals = intervals;

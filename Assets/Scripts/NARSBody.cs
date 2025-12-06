@@ -10,6 +10,8 @@ public class NARSBody
 
     int successful_moves = 0 ;
 
+    public float total_fitness;
+
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     public NARSBody(NARS nars)
     {
@@ -19,10 +21,18 @@ public class NARSBody
     public void Sense(BlocksWorld blocksWorld)
     {
         var current_states = blocksWorld.GetCurrentState();
-        foreach(var state_term in current_states)
+        foreach (var state_term1 in current_states)
         {
-            var sensation = new Judgment(this.nars, state_term, new(1.0f, 0.99f));
+            var sensation = new Judgment(this.nars, state_term1, new(1.0f, 0.99f), this.nars.current_cycle_number);
             nars.SendInput(sensation);
+            foreach (var state_term2 in current_states)
+            {
+                if (state_term1 == state_term2) continue;
+                var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { state_term1, state_term2 }, TermConnector.ParallelConjunction);
+                var compound_sensation = new Judgment(this.nars, compound_statement, new(1.0f, 0.99f), this.nars.current_cycle_number);
+                nars.SendInput(compound_sensation);
+
+            }
         }
 
     }
@@ -62,7 +72,12 @@ public class NARSBody
     }
 
 
-    public float GetFitness()
+
+    public void ResetForEpisode()
+    {
+        successful_moves = 0;
+    }
+    public float GetEpisodeFitness()
     {
         return successful_moves;
     }

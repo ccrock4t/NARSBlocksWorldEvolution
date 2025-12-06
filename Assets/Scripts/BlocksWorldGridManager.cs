@@ -12,8 +12,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 {
     [SerializeField] private RectTransform parent;   // UI container under main Canvas
     [SerializeField] private GameObject worldPrefab;   // UI container under main Canvas
-    [SerializeField] private int rows = 5;
-    [SerializeField] private int cols = 5;
+    private int rows = 4;
+    private int cols = 4;
 
     // size and spacing of each mini-world
     [SerializeField] private Vector2 cellSize = new Vector2(300f, 300f);
@@ -27,9 +27,10 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private int _fixedUpdateCounter = 0;
 
-
+    int episode_length = 25;
     public const int NUM_OF_NARS_AGENTS = 25;
-    AnimatTable table;
+    AnimatTable hallOfFameTable;
+    AnimatTable recentTable;
 
     public class Agent
     {
@@ -37,7 +38,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         public NARS nars;
         public NARSBody narsBody;
 
-        public Agent(BlocksWorld blocksworld, NARSGenome gene)
+        public Agent(NARSGenome gene)
         {
             if(gene == null)
             {
@@ -47,10 +48,14 @@ public class BlocksWorldGridManager : MonoBehaviour
             {
                 genome = gene;
             }
-
-             genome.SetIdealGoal(blocksworld);
             nars = new NARS(genome);
             narsBody = new(nars);
+        }
+
+        public void Reset()
+        {
+            nars = new NARS(genome);
+            narsBody.ResetForEpisode();
         }
 
     }
@@ -60,10 +65,16 @@ public class BlocksWorldGridManager : MonoBehaviour
         public BlocksWorld blocksworld;
         public Agent agent;
 
+
         public BlocksWorldInstance(BlocksWorld blocksworld, NARSGenome gene)
         {
-            this.agent = new Agent(blocksworld, gene);
+            this.agent = new Agent(gene);
             this.blocksworld = blocksworld;
+        }
+
+        public void ResetAgent()
+        {
+            this.agent.Reset();
         }
     }
 
@@ -72,17 +83,21 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private void Start()
     {
-        table = new(AnimatTable.SortingRule.sorted, AnimatTable.ScoreType.objective_fitness);
-        SpawnGeneration(true);
+        hallOfFameTable = new(AnimatTable.SortingRule.sorted, AnimatTable.ScoreType.objective_fitness);
+        recentTable = new(AnimatTable.SortingRule.unsorted, AnimatTable.ScoreType.objective_fitness);
+        SpawnNewGeneration(true);
+        SpawnNewEpisode();
     }
 
-    public void SpawnGeneration(bool initial)
+
+    public void SpawnNewEpisode()
     {
+        int i = 0;
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
             {
-
+                var worldInstance = population[i++];
                 // instantiate one BlocksWorld
                 BlocksWorld world = Instantiate(worldPrefab, parent).GetComponent<BlocksWorld>();
                 world.Initialize();
@@ -95,8 +110,19 @@ public class BlocksWorldGridManager : MonoBehaviour
                 rt.sizeDelta = cellSize;
                 rt.anchoredPosition = new Vector2(x, y);
 
-                // OPTIONAL: tweak per-world parameters
-                // world.numberOfBlocks = 3;  // if you expose it as public or property
+
+                worldInstance.agent.genome.SetIdealGoal(world);
+                worldInstance.blocksworld = world;
+            }
+        }
+    }
+
+    public void SpawnNewGeneration(bool initial)
+    {
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
 
                 NARSGenome genome;
                 if (initial)
@@ -106,13 +132,35 @@ public class BlocksWorldGridManager : MonoBehaviour
                 else
                 {
                     int sexual = UnityEngine.Random.Range(0, 2);
-                    NARSGenome[] new_genomes = table.GetNewAnimatReproducedFromTable(sexual == 1);
+                    int table = UnityEngine.Random.Range(0, 2);
+                    NARSGenome[] new_genomes;
+                    if (table == 0)
+                    {
+                        new_genomes = hallOfFameTable.GetNewAnimatReproducedFromTable(sexual == 1);
+                    }
+                    else
+                    {
+                        new_genomes = recentTable.GetNewAnimatReproducedFromTable(sexual == 1);
+                    }
+                    
                     genome = new_genomes[0];
                 }
 
-                BlocksWorldInstance worldInstance = new(world, genome);
+                BlocksWorldInstance worldInstance = new(null, genome);
                 population.Add(worldInstance);
             }
+        }
+    }
+
+    public void FinishEpisode()
+    {
+        foreach (var instance in population)
+        {
+            float fitness = instance.agent.narsBody.GetEpisodeFitness();
+            instance.agent.narsBody.total_fitness += fitness;
+            Destroy(instance.blocksworld.gameObject);
+            instance.ResetAgent();
+
         }
     }
 
@@ -120,9 +168,14 @@ public class BlocksWorldGridManager : MonoBehaviour
     {
         foreach(var instance in population)
         {
-            float fitness = instance.agent.narsBody.GetFitness();
+            if(instance.agent.narsBody.total_fitness > 0)
+            {
+                int test = 1;
+            }
+            float fitness = instance.agent.narsBody.total_fitness / (float)EPISODES_PER_GENERATION;
             high_score = math.max(fitness, high_score);
-            table.TryAdd(fitness, instance.agent.genome);
+            hallOfFameTable.TryAdd(fitness, instance.agent.genome);
+            recentTable.TryAdd(fitness, instance.agent.genome);
             Destroy(instance.blocksworld.gameObject);
         }
         population.Clear();
@@ -130,8 +183,14 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     [SerializeField] TextMeshProUGUI TimestepTxt;
     [SerializeField] TextMeshProUGUI HighScoreTxt;
+    [SerializeField] TextMeshProUGUI GenerationTxt;
+    [SerializeField] TextMeshProUGUI EpisodeTxt;
     float high_score;
 
+
+    int episode_counter = 0;
+    int generation_counter = 0;
+    int EPISODES_PER_GENERATION = 5;
     void FixedUpdate()
     {
         _fixedUpdateCounter++;
@@ -142,14 +201,26 @@ public class BlocksWorldGridManager : MonoBehaviour
             timestep++;
             UpdateUI();
   
-            if (timestep < 10)
+            if (timestep < episode_length)
             {
                 StepSimulation();
             }
             else
             {
-                FinishGeneration();
-                SpawnGeneration(false);
+                episode_counter++;
+                FinishEpisode();
+                if (episode_counter >= EPISODES_PER_GENERATION)
+                {
+                    FinishGeneration();
+                    GC.Collect();
+                    SpawnNewGeneration(false);
+                    episode_counter = 0;
+                    generation_counter++;
+                }
+             
+                SpawnNewEpisode();
+                
+            
                 timestep = 0;
             }
             // WriteCsvRow();   // still runs on each tick
@@ -170,11 +241,21 @@ public class BlocksWorldGridManager : MonoBehaviour
             {
                 agent.narsBody.Sense(blocksworld);
                 // enter instinctual goals
-                foreach (var goal_data in agent.nars.genome.goals)
+                for(int j =0; j< agent.nars.genome.goals.Count; j++)
                 {
-                    var goal = new Goal(agent.nars, goal_data.statement, goal_data.evidence, occurrence_time: agent.nars.current_cycle_number);
+                    var goal_data1 = agent.nars.genome.goals[j];
+                    var goal = new Goal(agent.nars, goal_data1.statement, goal_data1.evidence, occurrence_time: agent.nars.current_cycle_number);
                     agent.nars.SendInput(goal);
+                    for (int k = 0; k < agent.nars.genome.goals.Count; k++)
+                    {
+                        if (i == k) continue;
+                        var goal_data2 = agent.nars.genome.goals[k];
+                        var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { goal_data1.statement, goal_data2.statement }, TermConnector.ParallelConjunction);
+                        var goal2 = new Goal(agent.nars, compound_statement, new(1.0f,0.99f), occurrence_time: agent.nars.current_cycle_number);
+                        agent.nars.SendInput(goal2);
+                    }
                 }
+
                 agent.nars.do_working_cycle();
             }
             agent.narsBody.MotorAct(blocksworld);
@@ -191,14 +272,14 @@ public class BlocksWorldGridManager : MonoBehaviour
     {
         if (_csv == null) return;
 
-        // max table score
+        // max hallOfFameTable score
         float maxTable = 0f;
-        var best = table.GetBest();
+        var best = hallOfFameTable.GetBest();
         if (best.HasValue) maxTable = best.Value.score;
 
         // mean (average) and median
-        int count = table.Count();
-        float mean = (count > 0) ? (table.total_score / count) : 0f;
+        int count = hallOfFameTable.Count();
+        float mean = (count > 0) ? (hallOfFameTable.total_score / count) : 0f;
         float median = GetMedianTableScore();
 
         string line = string.Join(",",
@@ -268,6 +349,8 @@ public class BlocksWorldGridManager : MonoBehaviour
     {
         TimestepTxt.text = "Timestep: " + timestep;
         HighScoreTxt.text = "High Score: " + high_score;
+        GenerationTxt.text = "Generation: " + generation_counter;
+        EpisodeTxt.text = "Episode: " + episode_counter;
         // timestepTXT.text = "Timestep: " + timestep;
         // scoreTXT.text = "High Score: " + high_score;
         // genomeSizeTXT.text = "Largest genome: " + largest_genome;

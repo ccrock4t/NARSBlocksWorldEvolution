@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 
 
-// sorted table of animats
+// sorted hallOfFameTable of animats
 public class AnimatTable
 {
     public const int SIZE_LIMIT = 100; // for reproduction
@@ -105,37 +105,37 @@ public class AnimatTable
 
     //    var novelty_search = AnimatArena.GetInstance().novelty_search;
     //    if (novelty_search.NeedsMoreEntries()) return;
-    //    //for (int i = 0; i < this.table.Count; i++)
+    //    //for (int i = 0; i < this.hallOfFameTable.Count; i++)
     //    this.total_score = 0;
 
     //    float[] new_scores;
     //    if (novelty_search is NoveltySearchCPU)
     //    {
-    //        new_scores = new float[this.table.Count];
-    //        Parallel.For(0, this.table.Count, i =>
+    //        new_scores = new float[this.hallOfFameTable.Count];
+    //        Parallel.For(0, this.hallOfFameTable.Count, i =>
     //        {
-    //            var animat = this.table[i];
+    //            var animat = this.hallOfFameTable[i];
     //            float new_novelty = novelty_search.GetAnimatNoveltyScore(animat.data.behavior);
 
     //            // change score
-    //            var entry = this.table[i];
+    //            var entry = this.hallOfFameTable[i];
     //            entry.score = new_novelty;
-    //            this.table[i] = entry;
+    //            this.hallOfFameTable[i] = entry;
     //            new_scores[i] = new_novelty;
     //        });
     //    }
     //    else if (novelty_search is NoveltySearchGPU novelty_search_gpu)
     //    {
     //        new_scores = novelty_search_gpu.GetAnimatNoveltyScoreBatch(this.GPU_table);
-    //        Parallel.For(0, this.table.Count, i =>
+    //        Parallel.For(0, this.hallOfFameTable.Count, i =>
     //        {
     //            // change score
-    //            var entry = this.table[i];
+    //            var entry = this.hallOfFameTable[i];
     //            entry.score = new_scores[i];
-    //            this.table[i] = entry;
+    //            this.hallOfFameTable[i] = entry;
     //        });
 
-    //        this.table.Sort(this.ascending_score_comparer);
+    //        this.hallOfFameTable.Sort(this.ascending_score_comparer);
     //    }
     //    else
     //    {
@@ -237,7 +237,7 @@ public class AnimatTable
         float total_score = this.total_score;
 
         if (ignore_idx >= 0)
-            total_score -= this.table[ignore_idx].score; // assume table is a List<TableEntry>
+            total_score -= this.table[ignore_idx].score; // assume hallOfFameTable is a List<TableEntry>
 
         if (total_score <= 0f)
         {
@@ -293,7 +293,7 @@ public class AnimatTable
             results = new NARSGenome[2];
             // sexual
             int ignore_idx = -1;
-            ignore_idx = parent1_idx; // same table, so dont pick the same animat
+            ignore_idx = parent1_idx; // same hallOfFameTable, so dont pick the same animat
             (NARSGenome parent2, int parent2_idx) = this.PeekProbabilistic(ignore_idx: ignore_idx);
 
             NARSGenome offspring1_genome;

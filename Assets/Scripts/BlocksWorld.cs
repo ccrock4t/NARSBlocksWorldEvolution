@@ -9,7 +9,7 @@ public class BlocksWorld : MonoBehaviour
     /*
      * Ontology:
      *   On(x, y)     --- block x is on top of block y
-     *   OnTable(x)   --- block x is on the table
+     *   OnTable(x)   --- block x is on the hallOfFameTable
      *   Clear(x)     --- nothing is on top of block x
      */
 
@@ -21,7 +21,7 @@ public class BlocksWorld : MonoBehaviour
     // Canvas-space spacing (in pixels if using Screen Space)
     [SerializeField] private float horizontalSpacing = 150f;
     [SerializeField] private float verticalSpacing = 80f;
-    [SerializeField] private float tableY = -150f;  // base Y for the "table"
+    [SerializeField] private float tableY = -150f;  // base Y for the "hallOfFameTable"
 
     // FOL-style representation of the CURRENT world
     // On(x, y) is encoded as: on[x] = y  (y is either another block name or TABLE)
@@ -43,7 +43,7 @@ public class BlocksWorld : MonoBehaviour
 
     private readonly Dictionary<string, BlockData> blocks = new Dictionary<string, BlockData>();
 
-    // Constant for table representation
+    // Constant for hallOfFameTable representation
     private const string TABLE = "Table";
 
     public void Initialize()
@@ -181,7 +181,7 @@ public class BlocksWorld : MonoBehaviour
 
     /// <summary>
     /// Generate a random valid blocks world configuration:
-    /// Each block is either on the table (OnTable) or stacked on some clear block.
+    /// Each block is either on the hallOfFameTable (OnTable) or stacked on some clear block.
     /// This fills the given 'onState' (for On) and 'clearState' (for Clear) collections.
     /// </summary>
     private void GenerateRandomState(Dictionary<string, string> onState, HashSet<string> clearState)
@@ -237,7 +237,7 @@ public class BlocksWorld : MonoBehaviour
             return;
         }
 
-        // Find all blocks directly on the table (roots of stacks)
+        // Find all blocks directly on the hallOfFameTable (roots of stacks)
         List<string> roots = new List<string>();
         foreach (var kvp in onState)
         {
@@ -335,7 +335,7 @@ public class BlocksWorld : MonoBehaviour
     }
 
     /// <summary>
-    /// FOL predicate: OnTable(x) --- block x is on the table.
+    /// FOL predicate: OnTable(x) --- block x is on the hallOfFameTable.
     /// Implemented as On(x, Table).
     /// </summary>
     public bool OnTablePredicate(string x)
@@ -368,7 +368,7 @@ public class BlocksWorld : MonoBehaviour
         foreach (var kvp in on)
         {
             string support = kvp.Value;
-            if (support != TABLE) // table doesn't count as a block
+            if (support != TABLE) // hallOfFameTable doesn't count as a block
             {
                 clear.Remove(support);
             }
@@ -486,7 +486,7 @@ public class BlocksWorld : MonoBehaviour
             return false;
         }
 
-        if (!OnPredicate(top, bottom))
+        if (OnPredicate(top, bottom))
         {
             Debug.LogWarning($"Stack invalid: blocks already stacked {top}, {bottom}.");
             return false;
@@ -510,7 +510,7 @@ public class BlocksWorld : MonoBehaviour
     }
 
     /// <summary>
-    /// Unstack(block): take 'block' and put it on the table.
+    /// Unstack(block): take 'block' and put it on the hallOfFameTable.
     /// Valid iff 'block' is Clear.
     /// This corresponds to: OnTable(block).
     /// </summary>
@@ -625,16 +625,15 @@ public class BlocksWorld : MonoBehaviour
         }
 
         //// Clear info for EVERY block (if you want it, same style as goal)
-        //foreach (var kvp in blocks)
-        //{
-        //    string block = kvp.Key;
-        //
-        //    if (clear.Contains(block))
-        //    {
-        //        sb.Append($" ({block} --> Clear)");
-        //        current_states.Add(StatementTerm.from_string($"({block} --> Clear)"));
-        //    }
-        //}
+        foreach (var kvp in blocks)
+        {
+            string block = kvp.Key;
+
+            if (clear.Contains(block))
+            {
+                current_states.Add(StatementTerm.from_string($"({block} --> Clear)"));
+            }
+        }
 
         return current_states;
     }

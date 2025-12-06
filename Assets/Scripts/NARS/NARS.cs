@@ -270,7 +270,7 @@ public class NARS
     {
         /*
             Processes a Narsese Judgment Task
-            Insert it into the belief table && revise it with another belief
+            Insert it into the belief hallOfFameTable && revise it with another belief
 
             :param Judgment Task to process
         */
@@ -337,7 +337,7 @@ public class NARS
         //this.memory.concepts_bag.strengthen_item_quality(task_statement_concept_item.key);
 
         Concept task_statement_concept = task_statement_concept_item.obj;
-        // get the best answer from concept belief table
+        // get the best answer from concept belief hallOfFameTable
         Judgment best_answer = task_statement_concept.belief_table.peek();
         Sentence? j1 = null;
         if (best_answer != null)
@@ -374,7 +374,7 @@ public class NARS
         /*
             Initial Processing
 
-            Insert it into the desire table || revise with the most confident desire
+            Insert it into the desire hallOfFameTable || revise with the most confident desire
         */
 
         Item<Concept> statement_concept_item = this.memory.peek_concept_item(j.statement);
@@ -457,191 +457,191 @@ public class NARS
                 }
             }
 
-            if (statement is CompoundTerm)
+            if (statement is CompoundTerm compoundStatement && compoundStatement.connector == TermConnector.SequentialConjunction)
             {
                 if (statement.connector == null)
                 {
                     Debug.LogError("null connector for statement " + statement);
                     return;
                 }
-                TermConnector connector = (TermConnector)statement.connector;
-                bool is_conjunction = TermConnectorMethods.is_conjunction(connector);
-                if (is_conjunction)
+          
+                // if it's a conjunction (A &/ B), simplify using true beliefs (e.g. A) or derive a goal for A! if A is false
+                Term first_subterm_statement = (Term)((CompoundTerm)statement).subterms[0];
+                Concept first_subterm_concept = this.memory.peek_concept(first_subterm_statement);
+                //  Term sensory_predicate = first_subterm_statement.get_predicate_term();
+                //   Term sensory_subject = first_subterm_statement.get_subject_term();
+                Judgment first_subterm_belief = null;
+                //if (sensory_predicate is VariableTerm)
+                //{
+                //    variable_unifications_for_goal_derivation.Clear();
+                //    // find judgments which satisfy the variable, if any
+                //    Parallel.ForEach(this.memory.concepts_bag, concept_item =>
+                //    {
+                //        var concept = concept_item.obj;
+                //        var term = concept.term;
+                //        if (term is StatementTerm statement && term.is_first_order())
+                //        {
+                //            if (statement.get_subject_term() is AtomicTerm atom)
+                //            {
+                //                if (atom == sensory_subject)
+                //                {
+                //                    // subjects match, so it matches the variable predicate
+                //                    var judgment = concept.belief_table.peek_first_interactable(j);
+                //                    if (judgment != null)
+                //                    {
+                //                        variable_unifications_for_goal_derivation.Add(judgment);
+                //                    }
+                //                }
+                //            }
+                //        }
+
+                //    });
+
+                //    var candidates = variable_unifications_for_goal_derivation.ToArray();
+                //    if (candidates.Length > 0)
+                //    {
+                //        // 1. Compute total weight (sum of frequencies)
+                //        float totalWeight = 0f;
+                //        foreach (var jdg in candidates)
+                //        {
+                //            // clamp to >= 0 just in case
+                //            float w = Mathf.Max(0f, this.inferenceEngine.get_expectation(jdg));   // <-- use the right property here
+                //            totalWeight += w;
+                //        }
+
+                //        Judgment picked = null;
+
+                //        if (totalWeight > 0f)
+                //        {
+                //            // 2. Pick a random point in [0, totalWeight)
+                //            float r = UnityEngine.Random.Range(0f, totalWeight);
+
+                //            // 3. Walk through and find where r falls
+                //            float cumulative = 0f;
+                //            foreach (var jdg in candidates)
+                //            {
+                //                float w = Mathf.Max(0f, this.inferenceEngine.get_expectation(jdg));  // same property
+                //                cumulative += w;
+                //                if (r <= cumulative)
+                //                {
+                //                    picked = jdg;
+                //                    break;
+                //                }
+                //            }
+                //        }
+
+                //        // Fallback: if all frequencies were 0 (or something weird), use uniform
+                //        if (picked == null)
+                //        {
+                //            int index = UnityEngine.Random.Range(0, candidates.Length);
+                //            picked = candidates[index];
+                //        }
+
+                //        first_subterm_belief = picked;
+                //    }
+
+
+                //}
+                //else
+                //{
+                first_subterm_belief = first_subterm_concept.belief_table.peek_first_interactable(j);
+
+                StatementTerm motor_op_statement = (StatementTerm)((CompoundTerm)statement).subterms[1];
+                Concept second_subterm_concept = this.memory.peek_concept(motor_op_statement);
+                CompoundTerm operation_product = (CompoundTerm)motor_op_statement.get_subject_term();
+                Term operation_argument = operation_product.subterms[1];
+
+
+                //if (!(operation_argument is VariableTerm == sensory_predicate is VariableTerm))
+                //{
+                //    Debug.LogError("assert both S and ^M must contain the same term types");
+                //    return;
+                //}
+
+
+                if (operation_argument is VariableTerm)
                 {
-                    // if it's a conjunction (A &/ B), simplify using true beliefs (e.g. A) or derive a goal for A! if A is false
-                    StatementTerm first_subterm_statement = (StatementTerm)((CompoundTerm)statement).subterms[0];
-                    Concept first_subterm_concept = this.memory.peek_concept(first_subterm_statement);
-                    Term sensory_predicate = first_subterm_statement.get_predicate_term();
-                    Term sensory_subject = first_subterm_statement.get_subject_term();
-                    Judgment first_subterm_belief = null;
-                    if (sensory_predicate is VariableTerm)
-                    {
-                        variable_unifications_for_goal_derivation.Clear();
-                        // find judgments which satisfy the variable, if any
-                        Parallel.ForEach(this.memory.concepts_bag, concept_item =>
-                        {
-                            var concept = concept_item.obj;
-                            var term = concept.term;
-                            if (term is StatementTerm statement && term.is_first_order())
-                            {
-                                if (statement.get_subject_term() is AtomicTerm atom)
-                                {
-                                    if (atom == sensory_subject)
-                                    {
-                                        // subjects match, so it matches the variable predicate
-                                        var judgment = concept.belief_table.peek_first_interactable(j);
-                                        if (judgment != null)
-                                        {
-                                            variable_unifications_for_goal_derivation.Add(judgment);
-                                        }
-                                    }
-                                }
-                            }
-
-                        });
-
-                        var candidates = variable_unifications_for_goal_derivation.ToArray();
-                        if (candidates.Length > 0)
-                        {
-                            // 1. Compute total weight (sum of frequencies)
-                            float totalWeight = 0f;
-                            foreach (var jdg in candidates)
-                            {
-                                // clamp to >= 0 just in case
-                                float w = Mathf.Max(0f, this.inferenceEngine.get_expectation(jdg));   // <-- use the right property here
-                                totalWeight += w;
-                            }
-
-                            Judgment picked = null;
-
-                            if (totalWeight > 0f)
-                            {
-                                // 2. Pick a random point in [0, totalWeight)
-                                float r = UnityEngine.Random.Range(0f, totalWeight);
-
-                                // 3. Walk through and find where r falls
-                                float cumulative = 0f;
-                                foreach (var jdg in candidates)
-                                {
-                                    float w = Mathf.Max(0f, this.inferenceEngine.get_expectation(jdg));  // same property
-                                    cumulative += w;
-                                    if (r <= cumulative)
-                                    {
-                                        picked = jdg;
-                                        break;
-                                    }
-                                }
-                            }
-
-                            // Fallback: if all frequencies were 0 (or something weird), use uniform
-                            if (picked == null)
-                            {
-                                int index = UnityEngine.Random.Range(0, candidates.Length);
-                                picked = candidates[index];
-                            }
-
-                            first_subterm_belief = picked;
-                        }
-
-
-                    }
-                    else
-                    {
-                        first_subterm_belief = first_subterm_concept.belief_table.peek_first_interactable(j);
-                    }
-
-
-                    StatementTerm motor_op_statement = (StatementTerm)((CompoundTerm)statement).subterms[1];
-                    Concept second_subterm_concept = this.memory.peek_concept(motor_op_statement);
-                    CompoundTerm operation_product = (CompoundTerm)motor_op_statement.get_subject_term();
-                    Term operation_argument = operation_product.subterms[1];
-
-
-                    if (!(operation_argument is VariableTerm == sensory_predicate is VariableTerm))
-                    {
-                        Debug.LogError("assert both S and ^M must contain the same term types");
-                        return;
-                    }
-
-
-                    if (operation_argument is VariableTerm)
-                    {
-                        // handle operation variable
-                    }
-                    else
-                    {
-
-                    }
-
-
-                    if (first_subterm_belief != null && this.inferenceEngine.is_positive(first_subterm_belief))
-                    {
-                        List<Sentence> results = null;
-                        if (sensory_predicate is VariableTerm)
-                        {
-
-                            var subterms = new Term[] { ((CompoundTerm)motor_op_statement.get_subject_term()).subterms[0], ((StatementTerm)first_subterm_belief.statement).get_predicate_term() };
-                            CompoundTerm unified_motor_compound = null;// TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.Product);
-                            StatementTerm unified_goal_statement = new(unified_motor_compound, motor_op_statement.get_predicate_term(), Copula.Inheritance);
-                            var value = this.inferenceEngine.truthValueFunctions.F_Deduction(
-                                first_subterm_belief.evidential_value.frequency,
-                                first_subterm_belief.evidential_value.confidence,
-                                j.evidential_value.frequency,
-                                j.evidential_value.confidence);
-                            Goal derived_variable_unified_goal = new Goal(this, unified_goal_statement, value);
-
-                            results = new()
-                            {
-                                derived_variable_unified_goal
-                            };
-                        }
-                        else
-                        {
-                            // the first component of the goal is positive, do inference and derive the remaining goal component
-                            results = this.inferenceEngine.do_semantic_inference_two_premise(j, first_subterm_belief);
-                        }
-
-                        foreach (Sentence result in results)
-                        {
-                            this.global_buffer.PUT_NEW(result);
-                        }
-                        return; // done deriving goals
-                    }
-                    else
-                    {
-                        if (sensory_predicate is VariableTerm)
-                        {
-                            //var unification_term = Term.from_string(AlpineGridManager.GetRandomDirectionString());
-                            //StatementTerm first_subterm_statement_unified = new StatementTerm(sensory_subject, unification_term, Copula.Inheritance);
-                            //first_subterm_statement = first_subterm_statement_unified;
-                        }
-                        //first belief was not positive, so derive a goal to make it positive
-                        Goal first_subterm_goal = (Goal)this.helperFunctions.create_resultant_sentence_one_premise(j, first_subterm_statement, null, j.evidential_value);
-                        this.global_buffer.PUT_NEW(first_subterm_goal);
-                    }
+                    // handle operation variable
                 }
-                else if (statement.connector == TermConnector.Negation && TermConnectorMethods.is_conjunction(((CompoundTerm)statement).subterms[0].connector))
+                else
                 {
-                    // if it's a negated conjunction (--,(A &/ B))!, simplify using true beliefs (e.g. A.)
-                    // (--,(A &/ B)) ==> D && A
-                    // induction
-                    // :- (--,(A &/ B)) && A ==> D :- (--,B) ==> D :- (--,B)!
-                    CompoundTerm conjunction = (CompoundTerm)((CompoundTerm)statement).subterms[0];
-                    Term subterm = conjunction.subterms[0];
-                    Concept subterm_concept = this.memory.peek_concept(subterm);
-                    Judgment belief = subterm_concept.belief_table.peek();
-                    if (belief != null && this.inferenceEngine.is_positive(belief))
-                    {
-                        // the first component of the goal is negative, do inference and derive the remaining goal component
-                        List<Sentence> results = this.inferenceEngine.do_semantic_inference_two_premise(j, belief);
-                        foreach (Sentence result in results)
-                        {
-                            this.global_buffer.PUT_NEW(result);
-                        }
 
-                        return; // done deriving goals
-                    }
                 }
+
+
+                if (first_subterm_belief != null && this.inferenceEngine.is_positive(first_subterm_belief))
+                {
+                    List<Sentence> results = null;
+                    //if (sensory_predicate is VariableTerm)
+                    //{
+
+                    //    var subterms = new Term[] { ((CompoundTerm)motor_op_statement.get_subject_term()).subterms[0], ((StatementTerm)first_subterm_belief.statement).get_predicate_term() };
+                    //    CompoundTerm unified_motor_compound = null;// TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.Product);
+                    //    StatementTerm unified_goal_statement = new(unified_motor_compound, motor_op_statement.get_predicate_term(), Copula.Inheritance);
+                    //    var value = this.inferenceEngine.truthValueFunctions.F_Deduction(
+                    //        first_subterm_belief.evidential_value.frequency,
+                    //        first_subterm_belief.evidential_value.confidence,
+                    //        j.evidential_value.frequency,
+                    //        j.evidential_value.confidence);
+                    //    Goal derived_variable_unified_goal = new Goal(this, unified_goal_statement, value);
+
+                    //    results = new()
+                    //    {
+                    //        derived_variable_unified_goal
+                    //    };
+                    //}
+                    //else
+                    //{
+
+                        // the first component of the goal is positive, do inference and derive the remaining goal component
+                    results = this.inferenceEngine.do_semantic_inference_two_premise(j, first_subterm_belief);
+                    //}
+
+                    if (first_subterm_belief.statement.connector == TermConnector.ParallelConjunction)
+                    {
+                        int test = 1;
+                    }
+                    foreach (Sentence result in results)
+                    {
+                        this.global_buffer.PUT_NEW(result);
+                    }
+                    return; // done deriving goals
+                }
+                else
+                {
+                    // if (sensory_predicate is VariableTerm)
+                    //  {
+                        //var unification_term = Term.from_string(AlpineGridManager.GetRandomDirectionString());
+                        //StatementTerm first_subterm_statement_unified = new StatementTerm(sensory_subject, unification_term, Copula.Inheritance);
+                        //first_subterm_statement = first_subterm_statement_unified;
+                    //  }
+                    //first belief was not positive, so derive a goal to make it positive
+                    Goal first_subterm_goal = (Goal)this.helperFunctions.create_resultant_sentence_one_premise(j, first_subterm_statement, null, j.evidential_value);
+                    this.global_buffer.PUT_NEW(first_subterm_goal);
+                }
+                
+                //else if (statement.connector == TermConnector.Negation && TermConnectorMethods.is_conjunction(((CompoundTerm)statement).subterms[0].connector))
+                //{
+                //    // if it's a negated conjunction (--,(A &/ B))!, simplify using true beliefs (e.g. A.)
+                //    // (--,(A &/ B)) ==> D && A
+                //    // induction
+                //    // :- (--,(A &/ B)) && A ==> D :- (--,B) ==> D :- (--,B)!
+                //    CompoundTerm conjunction = (CompoundTerm)((CompoundTerm)statement).subterms[0];
+                //    Term subterm = conjunction.subterms[0];
+                //    Concept subterm_concept = this.memory.peek_concept(subterm);
+                //    Judgment belief = subterm_concept.belief_table.peek();
+                //    if (belief != null && this.inferenceEngine.is_positive(belief))
+                //    {
+                //        // the first component of the goal is negative, do inference and derive the remaining goal component
+                //        List<Sentence> results = this.inferenceEngine.do_semantic_inference_two_premise(j, belief);
+                //        foreach (Sentence result in results)
+                //        {
+                //            this.global_buffer.PUT_NEW(result);
+                //        }
+
+                //        return; // done deriving goals
+                //    }
+                //}
             }
             else
             {
