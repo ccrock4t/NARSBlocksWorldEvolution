@@ -17,7 +17,7 @@ public class NARSGenome
     const bool ALLOW_COMPOUNDS = true;
     public static bool USE_GENERALIZATION = false;
 
-    public bool LIMIT_SIZE = false;
+    public bool LIMIT_SIZE = true;
     public int SIZE_LIMIT = 10;
 
 
@@ -984,7 +984,7 @@ public class NARSGenome
     {
         goals.Clear();
         List<(StatementTerm, float?, float?)> statement_strings = new();
-        foreach(var goal_statement in blocksworld.GetGoalState())
+        foreach(var goal_statement in blocksworld.GetGoalStateNoClear(out var _))
         {
             statement_strings.Add((goal_statement, null, null));
         }

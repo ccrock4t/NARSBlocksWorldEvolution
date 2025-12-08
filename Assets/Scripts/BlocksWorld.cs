@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Text;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 public class BlocksWorld : MonoBehaviour
@@ -42,9 +43,14 @@ public class BlocksWorld : MonoBehaviour
     }
 
     private readonly Dictionary<string, BlockData> blocks = new Dictionary<string, BlockData>();
+    private readonly List<string> blockNames = new();
 
     // Constant for hallOfFameTable representation
     private const string TABLE = "Table";
+
+    // Has the goal configuration been achieved?
+    public bool goalReached = false;
+
 
     public void Initialize()
     {
@@ -71,8 +77,24 @@ public class BlocksWorld : MonoBehaviour
 
         // 3. Lay out initial state and print goal
         LayoutBlocksFromState(on);
-        GetGoalState();
     }
+
+
+    public float GetFitnessForWorldState()
+    {
+        GetCurrentStateNoClear(out var curstate);
+        GetGoalStateNoClear(out var goalstate);
+        if (curstate == goalstate)
+        {
+            return 10;
+        }
+        else
+        {
+            return 1;
+        }
+           
+    }
+
     private void GenerateNonFlatGoal()
     {
         while (true)
@@ -147,6 +169,7 @@ public class BlocksWorld : MonoBehaviour
             };
 
             blocks[blockName] = data;
+            blockNames.Add(blockName);
         }
     }
 
@@ -193,10 +216,10 @@ public class BlocksWorld : MonoBehaviour
         List<string> supports = new List<string> { TABLE };
 
         // Random order of blocks
-        List<string> blockNames = new List<string>(blocks.Keys);
-        Shuffle(blockNames);
+        List<string> localBlockNames = new List<string>(blocks.Keys);
+        Shuffle(localBlockNames);
 
-        foreach (string block in blockNames)
+        foreach (string block in localBlockNames)
         {
             // Choose a random support from current supports (Table or a clear block)
             int idx = Random.Range(0, supports.Count);
@@ -474,6 +497,12 @@ public class BlocksWorld : MonoBehaviour
     /// </summary>
     public bool Stack(string top, string bottom)
     {
+        if (goalReached)
+        {
+            Debug.LogWarning("Stack ignored: goal state already reached.");
+            return false;
+        }
+
         if (top == bottom)
         {
             Debug.LogWarning("Stack invalid: cannot stack a block on itself.");
@@ -506,8 +535,13 @@ public class BlocksWorld : MonoBehaviour
         LayoutBlocksFromState(on);
 
         Debug.Log($"Action: Stack({top}, {bottom})");
+
+        // <-- check goal AFTER applying the action
+        CheckGoalReached();
+
         return true;
     }
+
 
     /// <summary>
     /// Unstack(block): take 'block' and put it on the hallOfFameTable.
@@ -516,6 +550,12 @@ public class BlocksWorld : MonoBehaviour
     /// </summary>
     public bool Unstack(string block)
     {
+        if (goalReached)
+        {
+            Debug.LogWarning("Unstack ignored: goal state already reached.");
+            return false;
+        }
+
         if (!blocks.ContainsKey(block))
         {
             Debug.LogWarning($"Unstack invalid: unknown block {block}.");
@@ -542,24 +582,29 @@ public class BlocksWorld : MonoBehaviour
         LayoutBlocksFromState(on);
 
         Debug.Log($"Action: Unstack({block})  // OnTable({block})");
+
+        // <-- check goal AFTER applying the action
+        CheckGoalReached();
+
         return true;
     }
+
 
     #endregion
 
     #region Goal state printing
 
     List<StatementTerm> goal_states;
-    public List<StatementTerm> GetGoalState()
+    public List<StatementTerm> GetGoalStateNoClear(out string str)
     {
         StringBuilder sb = new StringBuilder();
-        sb.Append("Random goal state (FOL): ");
+       // sb.Append("Random goal state (FOL): ");
 
         goal_states = new List<StatementTerm>(blocks.Count);
         // On / OnTable for EVERY block
-        foreach (var kvp in blocks)
+        foreach (var kvp in blockNames)
         {
-            string block = kvp.Key;
+            string block = kvp;
 
             if (!goalOn.TryGetValue(block, out string support))
             {
@@ -590,7 +635,8 @@ public class BlocksWorld : MonoBehaviour
         //        sb.Append($" ({block} --> Clear)");
         //}
 
-        Debug.Log(sb.ToString());
+      //  Debug.Log(;
+        str = sb.ToString();
 
         return goal_states;
     }
@@ -599,14 +645,16 @@ public class BlocksWorld : MonoBehaviour
 
     List<StatementTerm> current_states;
 
-    public List<StatementTerm> GetCurrentState()
+
+    public List<StatementTerm> GetCurrentStateNoClear(out string str)
     {
+        StringBuilder sb = new StringBuilder();
         current_states = new List<StatementTerm>(blocks.Count);
 
         // On / OnTable for EVERY block in the *current* state
-        foreach (var kvp in blocks)
+        foreach (var kvp in blockNames)
         {
-            string block = kvp.Key;
+            string block = kvp;
 
             if (!on.TryGetValue(block, out string support))
             {
@@ -616,10 +664,43 @@ public class BlocksWorld : MonoBehaviour
 
             if (support == TABLE)
             {
+                sb.Append($" ({block} --> OnTable)");
                 current_states.Add(StatementTerm.from_string($"({block} --> OnTable)"));
             }
             else
             {
+                sb.Append($" ((*,{block}, {support}) --> On)");
+                current_states.Add(StatementTerm.from_string($"((*,{block}, {support}) --> On)"));
+            }
+        }
+        str = sb.ToString();
+        return current_states;
+    }
+
+    public List<StatementTerm> GetCurrentState(out string str)
+    {
+        StringBuilder sb = new StringBuilder();
+        current_states = new List<StatementTerm>(blocks.Count);
+
+        // On / OnTable for EVERY block in the *current* state
+        foreach (var kvp in blockNames)
+        {
+            string block = kvp;
+
+            if (!on.TryGetValue(block, out string support))
+            {
+                // If the current 'on' mapping doesn't have this block yet, skip
+                continue;
+            }
+
+            if (support == TABLE)
+            {
+                sb.Append($" ({block} --> OnTable)");
+                current_states.Add(StatementTerm.from_string($"({block} --> OnTable)"));
+            }
+            else
+            {
+                sb.Append($" ((*,{ block}, { support}) --> On)");
                 current_states.Add(StatementTerm.from_string($"((*,{block}, {support}) --> On)"));
             }
         }
@@ -634,11 +715,38 @@ public class BlocksWorld : MonoBehaviour
                 current_states.Add(StatementTerm.from_string($"({block} --> Clear)"));
             }
         }
-
+        str = sb.ToString();
         return current_states;
     }
 
     #endregion
+    private void CheckGoalReached()
+    {
+        if (goalReached) return;   // already in goal, don't re-do
+
+        // Compare current "on" mapping with the goal "on" mapping.
+        // If every block's support matches, we've reached the goal.
+        int matches = CountMatchingOn(on, goalOn);
+        if (matches == blocks.Count)   // or numberOfBlocks
+        {
+            goalReached = true;
+            Debug.Log("Goal state reached!");
+
+            SetAllBlocksColor(Color.green);
+        }
+    }
+
+    private void SetAllBlocksColor(Color color)
+    {
+        foreach (var kvp in blocks)
+        {
+            var image = kvp.Value.instance.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = color;
+            }
+        }
+    }
 
 
     #endregion

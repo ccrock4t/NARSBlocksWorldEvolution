@@ -12,8 +12,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 {
     [SerializeField] private RectTransform parent;   // UI container under main Canvas
     [SerializeField] private GameObject worldPrefab;   // UI container under main Canvas
-    private int rows = 4;
-    private int cols = 4;
+    private int rows = 5;
+    private int cols = 5;
 
     // size and spacing of each mini-world
     [SerializeField] private Vector2 cellSize = new Vector2(300f, 300f);
@@ -23,11 +23,11 @@ public class BlocksWorldGridManager : MonoBehaviour
     private string _csvPath;
     private StreamWriter _csv;
 
-    private int updatesPerTick = 5;
+    private int fixedUpdatesPerSimulationTick = 7;
 
     private int _fixedUpdateCounter = 0;
 
-    int episode_length = 25;
+    public static int episode_length = 30;
     public const int NUM_OF_NARS_AGENTS = 25;
     AnimatTable hallOfFameTable;
     AnimatTable recentTable;
@@ -87,6 +87,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         recentTable = new(AnimatTable.SortingRule.unsorted, AnimatTable.ScoreType.objective_fitness);
         SpawnNewGeneration(true);
         SpawnNewEpisode();
+        InitCsv();
     }
 
 
@@ -156,12 +157,13 @@ public class BlocksWorldGridManager : MonoBehaviour
     {
         foreach (var instance in population)
         {
-            float fitness = instance.agent.narsBody.GetEpisodeFitness();
+            float fitness = instance.agent.narsBody.GetEpisodeFitness() * instance.blocksworld.GetFitnessForWorldState();
             instance.agent.narsBody.total_fitness += fitness;
             Destroy(instance.blocksworld.gameObject);
             instance.ResetAgent();
 
         }
+        WriteCsvRow();
     }
 
     public void FinishGeneration()
@@ -190,12 +192,12 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     int episode_counter = 0;
     int generation_counter = 0;
-    int EPISODES_PER_GENERATION = 5;
+    int EPISODES_PER_GENERATION = 3;
     void FixedUpdate()
     {
         _fixedUpdateCounter++;
 
-        if (_fixedUpdateCounter >= updatesPerTick)
+        if (_fixedUpdateCounter >= fixedUpdatesPerSimulationTick)
         {
             _fixedUpdateCounter = 0;   // reset for next tick
             timestep++;
@@ -262,8 +264,10 @@ public class BlocksWorldGridManager : MonoBehaviour
 
             agent.narsBody.timesteps_alive++;
             // agent.narsBody.remaining_life--;
+            blocksworld.GetCurrentState(out var stateStr);
+            agent.narsBody.AddUniqueStateReached(stateStr);
 
-            
+
         }
     }
 
@@ -280,12 +284,12 @@ public class BlocksWorldGridManager : MonoBehaviour
         // mean (average) and median
         int count = hallOfFameTable.Count();
         float mean = (count > 0) ? (hallOfFameTable.total_score / count) : 0f;
-        float median = GetMedianTableScore();
+       // float median = GetMedianTableScore();
 
         string line = string.Join(",",
             maxTable.ToString(CultureInfo.InvariantCulture),
-            mean.ToString(CultureInfo.InvariantCulture),
-            median.ToString(CultureInfo.InvariantCulture)
+            mean.ToString(CultureInfo.InvariantCulture)//,
+            //median.ToString(CultureInfo.InvariantCulture)
         );
 
         _csv.WriteLine(line);
@@ -305,7 +309,7 @@ public class BlocksWorldGridManager : MonoBehaviour
 
         _csvPath = Path.Combine(root, $"stats_{stamp}.csv");
         _csv = new StreamWriter(_csvPath, false);
-        _csv.WriteLine("max_table_score,mean_table_score,median_table_score");
+        _csv.WriteLine("max_table_score,mean_table_score");//,median_table_score");
 
         _csv.Flush();
 

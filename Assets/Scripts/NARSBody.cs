@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using static BlocksWorldGridManager;
 
@@ -20,7 +21,7 @@ public class NARSBody
 
     public void Sense(BlocksWorld blocksWorld)
     {
-        var current_states = blocksWorld.GetCurrentState();
+        var current_states = blocksWorld.GetCurrentState(out var _);
         foreach (var state_term1 in current_states)
         {
             var sensation = new Judgment(this.nars, state_term1, new(1.0f, 0.99f), this.nars.current_cycle_number);
@@ -71,14 +72,18 @@ public class NARSBody
         }
     }
 
-
+    HashSet<string> uniqueStates = new();
+    public void AddUniqueStateReached(string state)
+    {
+        uniqueStates.Add(state);
+    }
 
     public void ResetForEpisode()
     {
-        successful_moves = 0;
+        uniqueStates.Clear();
     }
     public float GetEpisodeFitness()
     {
-        return successful_moves;
+        return (float)uniqueStates.Count;
     }
 }
