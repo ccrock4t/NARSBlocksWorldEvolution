@@ -12,8 +12,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 {
     [SerializeField] private RectTransform parent;   // UI container under main Canvas
     [SerializeField] private GameObject worldPrefab;   // UI container under main Canvas
-    private int rows = 5;
-    private int cols = 5;
+    private int rows = 3;
+    private int cols = 3;
 
     // size and spacing of each mini-world
     [SerializeField] private Vector2 cellSize = new Vector2(300f, 300f);
@@ -23,14 +23,25 @@ public class BlocksWorldGridManager : MonoBehaviour
     private string _csvPath;
     private StreamWriter _csv;
 
-    private int fixedUpdatesPerSimulationTick = 7;
+    private int fixedUpdatesPerSimulationTick = 3;
 
     private int _fixedUpdateCounter = 0;
 
-    public static int episode_length = 30;
+    public static int episode_length = 40;
     public const int NUM_OF_NARS_AGENTS = 25;
     AnimatTable hallOfFameTable;
     AnimatTable recentTable;
+
+    [SerializeField] TextMeshProUGUI TimestepTxt;
+    [SerializeField] TextMeshProUGUI HighScoreTxt;
+    [SerializeField] TextMeshProUGUI GenerationTxt;
+    [SerializeField] TextMeshProUGUI EpisodeTxt;
+    float high_score;
+
+
+    int episode_counter = 0;
+    int generation_counter = 0;
+    int EPISODES_PER_GENERATION = 3;
 
     public class Agent
     {
@@ -55,7 +66,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         public void Reset()
         {
             nars = new NARS(genome);
-            narsBody.ResetForEpisode();
+            narsBody.ResetForEpisode(nars);
         }
 
     }
@@ -157,7 +168,9 @@ public class BlocksWorldGridManager : MonoBehaviour
     {
         foreach (var instance in population)
         {
-            float fitness = instance.agent.narsBody.GetEpisodeFitness() * instance.blocksworld.GetFitnessForWorldState();
+            var agent_fitness = instance.agent.narsBody.GetEpisodeFitness();
+            var world_fitness = instance.blocksworld.GetFitnessForWorldState();
+            float fitness = agent_fitness * world_fitness;
             instance.agent.narsBody.total_fitness += fitness;
             Destroy(instance.blocksworld.gameObject);
             instance.ResetAgent();
@@ -183,16 +196,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         population.Clear();
     }
 
-    [SerializeField] TextMeshProUGUI TimestepTxt;
-    [SerializeField] TextMeshProUGUI HighScoreTxt;
-    [SerializeField] TextMeshProUGUI GenerationTxt;
-    [SerializeField] TextMeshProUGUI EpisodeTxt;
-    float high_score;
 
-
-    int episode_counter = 0;
-    int generation_counter = 0;
-    int EPISODES_PER_GENERATION = 3;
     void FixedUpdate()
     {
         _fixedUpdateCounter++;
@@ -227,6 +231,10 @@ public class BlocksWorldGridManager : MonoBehaviour
             }
             // WriteCsvRow();   // still runs on each tick
         }
+        if(generation_counter == 52)
+        {
+            Application.Quit();
+        }
     }
 
 
@@ -248,12 +256,11 @@ public class BlocksWorldGridManager : MonoBehaviour
                     var goal_data1 = agent.nars.genome.goals[j];
                     var goal = new Goal(agent.nars, goal_data1.statement, goal_data1.evidence, occurrence_time: agent.nars.current_cycle_number);
                     agent.nars.SendInput(goal);
-                    for (int k = 0; k < agent.nars.genome.goals.Count; k++)
+                    for (int k = j; k < agent.nars.genome.goals.Count; k++)
                     {
-                        if (i == k) continue;
                         var goal_data2 = agent.nars.genome.goals[k];
                         var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { goal_data1.statement, goal_data2.statement }, TermConnector.ParallelConjunction);
-                        var goal2 = new Goal(agent.nars, compound_statement, new(1.0f,0.99f), occurrence_time: agent.nars.current_cycle_number);
+                        var goal2 = new Goal(agent.nars, compound_statement, new(1.0f, 0.99f), occurrence_time: agent.nars.current_cycle_number);
                         agent.nars.SendInput(goal2);
                     }
                 }

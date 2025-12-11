@@ -22,13 +22,14 @@ public class NARSBody
     public void Sense(BlocksWorld blocksWorld)
     {
         var current_states = blocksWorld.GetCurrentState(out var _);
-        foreach (var state_term1 in current_states)
+        for(int i=0; i<current_states.Count;i++)
         {
+            var state_term1 = current_states[i];
             var sensation = new Judgment(this.nars, state_term1, new(1.0f, 0.99f), this.nars.current_cycle_number);
             nars.SendInput(sensation);
-            foreach (var state_term2 in current_states)
+            for (int j = i+1; j < current_states.Count; j++)
             {
-                if (state_term1 == state_term2) continue;
+                var state_term2 = current_states[j];
                 var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { state_term1, state_term2 }, TermConnector.ParallelConjunction);
                 var compound_sensation = new Judgment(this.nars, compound_statement, new(1.0f, 0.99f), this.nars.current_cycle_number);
                 nars.SendInput(compound_sensation);
@@ -78,8 +79,9 @@ public class NARSBody
         uniqueStates.Add(state);
     }
 
-    public void ResetForEpisode()
+    public void ResetForEpisode(NARS nars)
     {
+        this.nars = nars;
         uniqueStates.Clear();
     }
     public float GetEpisodeFitness()

@@ -113,10 +113,16 @@ public class NARS
         while (tasks_left > 0)
         {
             Sentence buffer_item = this.global_buffer.take().obj;
+            tasks_left--;
+
+            if (buffer_item is Goal && this.inferenceEngine.get_sentence_value_time_decayed(buffer_item).confidence < 0.2)
+            {
+                continue;
+            }
 
             // process task
             this.process_sentence_initial(buffer_item);
-            tasks_left--;
+            
         }
 
 
@@ -551,6 +557,10 @@ public class NARS
                 CompoundTerm operation_product = (CompoundTerm)motor_op_statement.get_subject_term();
                 Term operation_argument = operation_product.subterms[1];
 
+                if(first_subterm_statement is CompoundTerm)
+                {
+                    int test = 1;
+                }
 
                 //if (!(operation_argument is VariableTerm == sensory_predicate is VariableTerm))
                 //{
@@ -829,6 +839,7 @@ public class NARS
 
     public void SendInput(Sentence input_sentence)
     {
+
         //Debug.Log("Sending input: " + this.nars.helperFunctions.sentence_to_string(input_sentence));
         if (input_sentence == null)
         {

@@ -17,7 +17,7 @@ public class BlocksWorld : MonoBehaviour
     [Header("Block Settings")]
     [SerializeField] private GameObject blockPrefab;
     [SerializeField] private GameObject canvas;
-    public static int numberOfBlocks = 3;
+    public static int numberOfBlocks = 4;
 
     // Canvas-space spacing (in pixels if using Screen Space)
     [SerializeField] private float horizontalSpacing = 150f;
@@ -84,13 +84,14 @@ public class BlocksWorld : MonoBehaviour
     {
         GetCurrentStateNoClear(out var curstate);
         GetGoalStateNoClear(out var goalstate);
+        int matches = CountMatchingOn(on, goalOn);
         if (curstate == goalstate)
         {
-            return 10;
+            return matches*10;
         }
         else
         {
-            return 1;
+            return matches;
         }
            
     }

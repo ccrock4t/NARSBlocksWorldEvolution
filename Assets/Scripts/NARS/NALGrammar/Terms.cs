@@ -496,7 +496,7 @@ public class CompoundTerm : Term
     public List<int> intervals;
     public bool is_operation;
 
-    public CompoundTerm(List<Term> subterms,
+    public CompoundTerm(List<Term> sub,
         TermConnector term_connector,
         string term_str,
         bool is_op,
@@ -514,9 +514,9 @@ public class CompoundTerm : Term
         if (TermConnectorMethods.is_order_invariant((TermConnector)term_connector))
         {
             // order doesn't matter, alphabetize so the system can recognize the same term
-            subterms.Sort((x, y) => x.ToString().CompareTo(y.ToString()));
+            sub.Sort((x, y) => x.ToString().CompareTo(y.ToString()));
         }
-        this.subterms = subterms;
+        this.subterms = sub;
         this.connector = term_connector;
         this.intervals = intervals;
         this.is_operation = is_op;

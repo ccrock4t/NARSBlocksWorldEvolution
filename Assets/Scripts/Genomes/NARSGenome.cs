@@ -17,7 +17,7 @@ public class NARSGenome
     const bool ALLOW_COMPOUNDS = true;
     public static bool USE_GENERALIZATION = false;
 
-    public bool LIMIT_SIZE = true;
+    public bool LIMIT_SIZE = false;
     public int SIZE_LIMIT = 10;
 
 
@@ -210,6 +210,7 @@ public class NARSGenome
 
         goals = new();
         beliefs = new();
+        // AddIdealBeliefsWithCompounds();
         if (USE_AND_EVOLVE_CONTINGENCIES())
         {
             if (beliefs_to_clone == null)
@@ -253,6 +254,40 @@ public class NARSGenome
             RandomizePersonalityParameters(ref this.personality_parameters);
         }
     }
+
+    //private void AddIdealBeliefsWithCompounds()
+    //{
+
+    //    for (int i = 0; i < BlocksWorld.numberOfBlocks; i++)
+    //    {
+    //        var blockName1 = BlocksWorld.GetBlockName(i);
+
+    //        SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> Clear)"));
+    //        SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> OnTable)"));
+    //        MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + ") --> UNSTACK)"));
+    //        for (int j = i + 1; j < BlocksWorld.numberOfBlocks; j++)
+    //        {
+    //            var blockName2 = BlocksWorld.GetBlockName(j);
+
+    //            SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName1},{blockName2}) --> On)"));
+    //            SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName2},{blockName1}) --> On)"));
+
+    //            MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + "," + blockName2 + ") --> STACK)"));
+    //            MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName2 + "," + blockName1 + ") --> STACK)"));
+    //        }
+    //    }
+
+    //    StatementTerm statement = CreateContingencyStatement(GetRandomSensoryTerm(), GetRandomMotorTerm(), GetRandomSensoryTerm());
+    //    string statement_string = statement.ToString();
+    //    if (!belief_statement_strings.ContainsKey(statement_string))
+    //    {
+    //        float f = UnityEngine.Random.Range(0.5f, 1f);
+    //        float c = UnityEngine.Random.Range(0.0f, 1f);
+    //        EvolvableSentence sentence = new(statement: statement,
+    //               new float2(f, c));
+    //        this.beliefs.Add(sentence);
+    //        belief_statement_strings.Add(statement_string, true);
+    //}
 
     public static PersonalityParameters DefaultParameters()
     {
