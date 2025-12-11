@@ -12,8 +12,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 {
     [SerializeField] private RectTransform parent;   // UI container under main Canvas
     [SerializeField] private GameObject worldPrefab;   // UI container under main Canvas
-    private int rows = 3;
-    private int cols = 3;
+    private int rows = 4;
+    private int cols = 4;
 
     // size and spacing of each mini-world
     [SerializeField] private Vector2 cellSize = new Vector2(300f, 300f);
@@ -27,7 +27,7 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private int _fixedUpdateCounter = 0;
 
-    public static int episode_length = 40;
+    public static int episode_length = 35;
     public const int NUM_OF_NARS_AGENTS = 25;
     AnimatTable hallOfFameTable;
     AnimatTable recentTable;
@@ -42,6 +42,7 @@ public class BlocksWorldGridManager : MonoBehaviour
     int episode_counter = 0;
     int generation_counter = 0;
     int EPISODES_PER_GENERATION = 3;
+    NARSGenome best_genome;
 
     public class Agent
     {
@@ -144,6 +145,7 @@ public class BlocksWorldGridManager : MonoBehaviour
                 else
                 {
                     int sexual = UnityEngine.Random.Range(0, 2);
+
                     int table = UnityEngine.Random.Range(0, 2);
                     NARSGenome[] new_genomes;
                     if (table == 0)
@@ -154,7 +156,7 @@ public class BlocksWorldGridManager : MonoBehaviour
                     {
                         new_genomes = recentTable.GetNewAnimatReproducedFromTable(sexual == 1);
                     }
-                    
+
                     genome = new_genomes[0];
                 }
 
@@ -179,6 +181,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         WriteCsvRow();
     }
 
+
     public void FinishGeneration()
     {
         foreach(var instance in population)
@@ -188,7 +191,12 @@ public class BlocksWorldGridManager : MonoBehaviour
                 int test = 1;
             }
             float fitness = instance.agent.narsBody.total_fitness / (float)EPISODES_PER_GENERATION;
-            high_score = math.max(fitness, high_score);
+            if(fitness > high_score)
+            {
+                high_score = math.max(fitness, high_score);
+                best_genome = instance.agent.genome;
+            }
+            
             hallOfFameTable.TryAdd(fitness, instance.agent.genome);
             recentTable.TryAdd(fitness, instance.agent.genome);
             Destroy(instance.blocksworld.gameObject);
@@ -231,7 +239,7 @@ public class BlocksWorldGridManager : MonoBehaviour
             }
             // WriteCsvRow();   // still runs on each tick
         }
-        if(generation_counter == 52)
+        if(generation_counter == 102)
         {
             Application.Quit();
         }
@@ -246,24 +254,38 @@ public class BlocksWorldGridManager : MonoBehaviour
         {
             var agent = blocksWorldInstance.agent;
             var blocksworld = blocksWorldInstance.blocksworld;
- 
+
+            //forget previous state
+            for (int i = 0; i < 4; i++)
+            {
+                agent.nars.do_working_cycle();
+            }
+            // enter instinctual goals
+            for (int i = 0; i < agent.nars.genome.goals.Count; i++)
+            {
+                var goal_data1 = agent.nars.genome.goals[i];
+                var goal1 = new Goal(agent.nars, goal_data1.statement, goal_data1.evidence, occurrence_time: agent.nars.current_cycle_number);
+                agent.nars.SendInput(goal1);
+                for (int j = i+1; j < agent.nars.genome.goals.Count; j++)
+                {
+                    var goal_data2 = agent.nars.genome.goals[j];
+                    var compound_statement2 = TermHelperFunctions.TryGetCompoundTerm(new() { goal_data1.statement, goal_data2.statement }, TermConnector.ParallelConjunction);
+                    var goal2 = new Goal(agent.nars, compound_statement2, new(1.0f, 0.999f), occurrence_time: agent.nars.current_cycle_number);
+                    agent.nars.SendInput(goal2);
+                    for (int k = j + 1; k < agent.nars.genome.goals.Count; k++)
+                    {
+                        var goal_data3 = agent.nars.genome.goals[k];
+                        var compound_statement3 = TermHelperFunctions.TryGetCompoundTerm(new() { goal_data1.statement, goal_data2.statement, goal_data3.statement }, TermConnector.ParallelConjunction);
+                        var goal3 = new Goal(agent.nars, compound_statement3, new(1.0f, 0.999f), occurrence_time: agent.nars.current_cycle_number);
+                        agent.nars.SendInput(goal3);
+                    }
+                }
+            }
+
+            // processthis state
             for (int i = 0; i < 4; i++)
             {
                 agent.narsBody.Sense(blocksworld);
-                // enter instinctual goals
-                for(int j =0; j< agent.nars.genome.goals.Count; j++)
-                {
-                    var goal_data1 = agent.nars.genome.goals[j];
-                    var goal = new Goal(agent.nars, goal_data1.statement, goal_data1.evidence, occurrence_time: agent.nars.current_cycle_number);
-                    agent.nars.SendInput(goal);
-                    for (int k = j; k < agent.nars.genome.goals.Count; k++)
-                    {
-                        var goal_data2 = agent.nars.genome.goals[k];
-                        var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { goal_data1.statement, goal_data2.statement }, TermConnector.ParallelConjunction);
-                        var goal2 = new Goal(agent.nars, compound_statement, new(1.0f, 0.99f), occurrence_time: agent.nars.current_cycle_number);
-                        agent.nars.SendInput(goal2);
-                    }
-                }
 
                 agent.nars.do_working_cycle();
             }

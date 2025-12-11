@@ -33,7 +33,14 @@ public class NARSBody
                 var compound_statement = TermHelperFunctions.TryGetCompoundTerm(new() { state_term1, state_term2 }, TermConnector.ParallelConjunction);
                 var compound_sensation = new Judgment(this.nars, compound_statement, new(1.0f, 0.99f), this.nars.current_cycle_number);
                 nars.SendInput(compound_sensation);
+                for (int k = j + 1; k < current_states.Count; k++)
+                {
+                    var state_term3 = current_states[k];
+                    var compound_statement3 = TermHelperFunctions.TryGetCompoundTerm(new() { state_term1, state_term2, state_term3 }, TermConnector.ParallelConjunction);
+                    var compound_sensation3 = new Judgment(this.nars, compound_statement, new(1.0f, 0.99f), this.nars.current_cycle_number);
+                    nars.SendInput(compound_sensation3);
 
+                }
             }
         }
 

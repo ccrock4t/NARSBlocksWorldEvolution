@@ -17,7 +17,7 @@ public class BlocksWorld : MonoBehaviour
     [Header("Block Settings")]
     [SerializeField] private GameObject blockPrefab;
     [SerializeField] private GameObject canvas;
-    public static int numberOfBlocks = 4;
+    public static int numberOfBlocks = 3;
 
     // Canvas-space spacing (in pixels if using Screen Space)
     [SerializeField] private float horizontalSpacing = 150f;

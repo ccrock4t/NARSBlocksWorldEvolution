@@ -92,7 +92,7 @@ public abstract class ItemContainer<T> : IEnumerable<Item<T>>
         Puts item into lookup hallOfFameTable && GUI
         :param item: put an Item into the lookup dictionary.
         */
-        // put item into lookup hallOfFameTable
+        // put item into lookup table
         this.item_lookup_dict.Add(item.key, item);
     }
 

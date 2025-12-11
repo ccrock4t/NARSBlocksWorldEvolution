@@ -6,6 +6,8 @@ using Unity.VisualScripting;
 using UnityEditor;
 using UnityEngine;
 using static MutationHelpers;
+using static Unity.Burst.Intrinsics.X86.Avx;
+using Random = UnityEngine.Random;
 public class NARSGenome
 {
     const float CHANCE_TO_MUTATE_BELIEF_CONTENT = 0.8f;
@@ -210,7 +212,7 @@ public class NARSGenome
 
         goals = new();
         beliefs = new();
-        // AddIdealBeliefsWithCompounds();
+
         if (USE_AND_EVOLVE_CONTINGENCIES())
         {
             if (beliefs_to_clone == null)
@@ -254,40 +256,6 @@ public class NARSGenome
             RandomizePersonalityParameters(ref this.personality_parameters);
         }
     }
-
-    //private void AddIdealBeliefsWithCompounds()
-    //{
-
-    //    for (int i = 0; i < BlocksWorld.numberOfBlocks; i++)
-    //    {
-    //        var blockName1 = BlocksWorld.GetBlockName(i);
-
-    //        SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> Clear)"));
-    //        SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"({blockName1} --> OnTable)"));
-    //        MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + ") --> UNSTACK)"));
-    //        for (int j = i + 1; j < BlocksWorld.numberOfBlocks; j++)
-    //        {
-    //            var blockName2 = BlocksWorld.GetBlockName(j);
-
-    //            SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName1},{blockName2}) --> On)"));
-    //            SENSORY_TERM_SET.Add((StatementTerm)Term.from_string($"((*,{blockName2},{blockName1}) --> On)"));
-
-    //            MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName1 + "," + blockName2 + ") --> STACK)"));
-    //            MOTOR_TERM_SET.Add((StatementTerm)Term.from_string("((*,{SELF}," + blockName2 + "," + blockName1 + ") --> STACK)"));
-    //        }
-    //    }
-
-    //    StatementTerm statement = CreateContingencyStatement(GetRandomSensoryTerm(), GetRandomMotorTerm(), GetRandomSensoryTerm());
-    //    string statement_string = statement.ToString();
-    //    if (!belief_statement_strings.ContainsKey(statement_string))
-    //    {
-    //        float f = UnityEngine.Random.Range(0.5f, 1f);
-    //        float c = UnityEngine.Random.Range(0.0f, 1f);
-    //        EvolvableSentence sentence = new(statement: statement,
-    //               new float2(f, c));
-    //        this.beliefs.Add(sentence);
-    //        belief_statement_strings.Add(statement_string, true);
-    //}
 
     public static PersonalityParameters DefaultParameters()
     {
@@ -589,11 +557,56 @@ public class NARSGenome
             //S
             // compound S
         
-            if (S is CompoundTerm)
+            if (S is CompoundTerm sComp)
             {
-                // make compound into not compound
-                var randomS = GetRandomSensoryTerm();
-                new_statement = CreateContingencyStatement(randomS, M, P);
+                if(Random.value < 0.5 || sComp.subterms.Count == 3)
+                {
+                    //remove term
+                    if(sComp.subterms.Count == 2)
+                    {
+                        // make compound into not compound
+                        int rnd_subterm_idx = Random.Range(0, 2);
+                        new_statement = CreateContingencyStatement(sComp.subterms[rnd_subterm_idx], M, P);
+                    }
+                    else// if (pComp.subterms.Count == 3)
+                    {
+                        // reduce compound from 3 to 2
+                        int rnd_subterm_ignore = Random.Range(0, 3);
+                        // make not compound into compound
+                        List<Term> subterms = new();
+                        int i = 0;
+                        foreach (var st in sComp.subterms)
+                        {
+                            if (rnd_subterm_ignore != i)
+                            {
+                                subterms.Add(st);
+                            }
+                            i++;
+                        }
+                        CompoundTerm c = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
+                        new_statement = CreateContingencyStatement(c, M, P);
+                    }
+
+                }
+                else
+                {
+                    // add term to 2-compound
+                    List<Term> subterms = new();
+                    subterms.Add(sComp.subterms[0]);
+                    subterms.Add(sComp.subterms[1]);
+                    var ignoreList = new List<StatementTerm>();
+                    foreach (var t in sComp.subterms)
+                    {
+                        if (t is StatementTerm st)
+                            ignoreList.Add(st);
+                    }
+
+                    var randomS = GetRandomSensoryTerm(ignoreList);
+                    subterms.Add(randomS);
+                    CompoundTerm c = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
+                    new_statement = CreateContingencyStatement(c, M, P);
+                }
+
             }
             else if (S is StatementTerm)
             {
@@ -615,12 +628,60 @@ public class NARSGenome
         {
             // P
             // compound P
-           
-            if (P is CompoundTerm)
+
+            if (P is CompoundTerm pComp)
             {
-                // make compound into not compound
-                var randomP = GetRandomSensoryTerm();
-                new_statement = CreateContingencyStatement(S, M, randomP);
+                if (Random.value < 0.5 || pComp.subterms.Count == 3)
+                {
+                    //remove term
+                    if (pComp.subterms.Count == 2)
+                    {
+                        // make compound into not compound
+                        int rnd_subterm_idx = Random.Range(0, 2);
+                        new_statement = CreateContingencyStatement(S, M, pComp.subterms[rnd_subterm_idx]);
+                    }
+                    else// if (pComp.subterms.Count == 3)
+                    {
+                        // reduce compound from 3 to 2
+                        int rnd_subterm_ignore = Random.Range(0, 3);
+
+
+                        // make not compound into compound
+                        List<Term> subterms = new();
+                        int i = 0;
+                        foreach(var st in pComp.subterms)
+                        {
+                            if(rnd_subterm_ignore != i)
+                            {
+                                subterms.Add(st);
+                            }
+                            i++;
+                        }
+                        
+                        CompoundTerm c = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
+                        new_statement = CreateContingencyStatement(S, M, c);
+                    }
+
+                }
+                else
+                {
+                    // add term to 2-compound
+                    List<Term> subterms = new();
+                    subterms.Add(pComp.subterms[0]);
+                    subterms.Add(pComp.subterms[1]);
+                    var ignoreList = new List<StatementTerm>();
+                    foreach (var t in pComp.subterms)
+                    {
+                        if (t is StatementTerm st)
+                            ignoreList.Add(st);
+                    }
+
+                    var randomP = GetRandomSensoryTerm(ignoreList);
+                    subterms.Add(randomP);
+                    CompoundTerm c = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
+                    new_statement = CreateContingencyStatement(S, M, c);
+                }
+
             }
             else if (P is StatementTerm)
             {
@@ -643,9 +704,6 @@ public class NARSGenome
             Debug.LogError("null");
             return;
         }
-
-
-
 
         belief.statement = new_statement;
         string new_statement_string = new_statement.ToString();
@@ -803,44 +861,75 @@ public class NARSGenome
         CompoundTerm subject = (CompoundTerm)implication.get_subject_term();
         Term S = (Term)subject.subterms[0];
         StatementTerm M = (StatementTerm)subject.subterms[1];
-        Term predicate = (Term)implication.get_predicate_term();
+        Term P = (Term)implication.get_predicate_term();
 
         StatementTerm new_statement;
         int rnd = UnityEngine.Random.Range(0, 3);
         if (rnd == 0)
         {
-            var randomS = GetRandomSensoryTerm();
-            if (M.contains_variable())
-            {
-                randomS = new StatementTerm(randomS.get_subject_term(), new VariableTerm("x", VariableTerm.VariableType.Dependent), Copula.Inheritance);
-            }
+        
             // replace S
             if (S is CompoundTerm sComp)
             {
                 // replace 1 part of the compound
                 List<Term> subterms = new();
-                int rnd_subterm_idx = UnityEngine.Random.Range(0, 2);
-                if(rnd_subterm_idx == 0)
-                {
-                    subterms.Add(sComp.subterms[0]);
-                }
-                else if (rnd_subterm_idx == 1)
-                {
-                    subterms.Add(sComp.subterms[1]);
-                }
-                else
-                {
-                    Debug.LogError("null");
-                    return;
-                }
+              
 
+                int rnd_subterm_idx = UnityEngine.Random.Range(0, sComp.subterms.Count);
+
+                if(sComp.subterms.Count == 2)
+                {
+                    if (rnd_subterm_idx == 0)
+                    {
+                        subterms.Add(sComp.subterms[1]);
+                    }
+                    else if (rnd_subterm_idx == 1)
+                    {
+                        subterms.Add(sComp.subterms[0]);
+                    }
+                    else
+                    {
+                        Debug.LogError("null");
+                        return;
+                    }
+                }
+                else if (sComp.subterms.Count == 3)
+                {
+                    if (rnd_subterm_idx == 0)
+                    {
+                        subterms.Add(sComp.subterms[1]);
+                        subterms.Add(sComp.subterms[2]);
+                    }
+                    else if (rnd_subterm_idx == 1)
+                    {
+                        subterms.Add(sComp.subterms[0]);
+                        subterms.Add(sComp.subterms[2]);
+                    }
+                    else if (rnd_subterm_idx == 2)
+                    {
+                        subterms.Add(sComp.subterms[0]);
+                        subterms.Add(sComp.subterms[1]);
+                    }
+                    else
+                    {
+                        Debug.LogError("null");
+                        return;
+                    }
+                }
+                List<StatementTerm> ignore_subterms = new();
+                foreach(var t in subterms)
+                {
+                    ignore_subterms.Add((StatementTerm)t);
+                }
+                var randomS = GetRandomSensoryTerm(ignore_subterms);
                 subterms.Add(randomS);
                 var new_S = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
-                new_statement = CreateContingencyStatement(new_S, M, predicate);
+                new_statement = CreateContingencyStatement(new_S, M, P);
             }
             else if (S is StatementTerm)
             {
-                new_statement = CreateContingencyStatement(randomS, M, predicate);
+                var randomS = GetRandomSensoryTerm();
+                new_statement = CreateContingencyStatement(randomS, M, P);
             }
             else
             {
@@ -856,12 +945,77 @@ public class NARSGenome
             {
                 randomM = new StatementTerm(Term.from_string("(*,{SELF},#x)"), randomM.get_predicate_term(), Copula.Inheritance);
             }
-            new_statement = CreateContingencyStatement(subject.subterms[0], randomM, predicate);
+            new_statement = CreateContingencyStatement(subject.subterms[0], randomM, P);
         }
         else //if (rnd == 2)
         {
             // replace P
-            new_statement = CreateContingencyStatement(subject.subterms[0], subject.subterms[1], GetRandomSensoryTerm());
+            if (P is CompoundTerm pComp)
+            {
+                // replace 1 part of the compound
+                List<Term> subterms = new();
+
+                int rnd_subterm_idx = UnityEngine.Random.Range(0, pComp.subterms.Count);
+
+                if (pComp.subterms.Count == 2)
+                {
+                    if (rnd_subterm_idx == 0)
+                    {
+                        subterms.Add(pComp.subterms[1]);
+                    }
+                    else if (rnd_subterm_idx == 1)
+                    {
+                        subterms.Add(pComp.subterms[0]);
+                    }
+                    else
+                    {
+                        Debug.LogError("null");
+                        return;
+                    }
+                }
+                else if (pComp.subterms.Count == 3)
+                {
+                    if (rnd_subterm_idx == 0)
+                    {
+                        subterms.Add(pComp.subterms[1]);
+                        subterms.Add(pComp.subterms[2]);
+                    }
+                    else if (rnd_subterm_idx == 1)
+                    {
+                        subterms.Add(pComp.subterms[0]);
+                        subterms.Add(pComp.subterms[2]);
+                    }
+                    else if (rnd_subterm_idx == 2)
+                    {
+                        subterms.Add(pComp.subterms[0]);
+                        subterms.Add(pComp.subterms[1]);
+                    }
+                    else
+                    {
+                        Debug.LogError("null");
+                        return;
+                    }
+                }
+                List<StatementTerm> ignore_subterms = new();
+                foreach (var t in subterms)
+                {
+                    ignore_subterms.Add((StatementTerm)t);
+                }
+                var randomP = GetRandomSensoryTerm(ignore_subterms);
+                subterms.Add(randomP);
+                var new_P = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
+                new_statement = CreateContingencyStatement(S, M, new_P);
+            }
+            else if (P is StatementTerm)
+            {
+                var randomP = GetRandomSensoryTerm();
+                new_statement = CreateContingencyStatement(S, M, randomP);
+            }
+            else
+            {
+                Debug.LogError("null");
+                return;
+            }
         }
 
 
@@ -888,6 +1042,49 @@ public class NARSGenome
         int rnd = UnityEngine.Random.Range(0, MOTOR_TERM_SET.Count);
         return MOTOR_TERM_SET[rnd];
     }
+
+    private int GetRandomIndexSkipping(int count, IReadOnlyCollection<int> skipIdxs)
+    {
+        if (count <= 0)
+            throw new InvalidOperationException("Cannot pick from an empty collection.");
+
+        // No skips? Just pick normally.
+        if (skipIdxs == null || skipIdxs.Count == 0)
+            return UnityEngine.Random.Range(0, count);
+
+        // Clamp skip indices to valid range and put in a HashSet for O(1) lookup
+        var banned = new HashSet<int>();
+        foreach (var idx in skipIdxs)
+        {
+            if (idx >= 0 && idx < count)
+                banned.Add(idx);
+        }
+
+        // If we banned everything, there's nothing to pick
+        if (banned.Count >= count)
+            throw new InvalidOperationException("All indices are skipped. Cannot pick any.");
+
+        // We want a random index among the *allowed* slots.
+        int allowedCount = count - banned.Count;
+        int rndPos = UnityEngine.Random.Range(0, allowedCount); // position within allowed indices
+
+        // Walk through indices and pick the rndPos-th allowed one
+        for (int i = 0; i < count; i++)
+        {
+            if (banned.Contains(i))
+                continue;
+
+            if (rndPos == 0)
+                return i;
+
+            rndPos--;
+        }
+
+        // Should be unreachable
+        throw new InvalidOperationException("Random selection failed unexpectedly.");
+    }
+
+
     private int GetRandomIndexSkipping(int count, int skipIdx)
     {
         if (count <= 0)
@@ -915,10 +1112,47 @@ public class NARSGenome
 
     public StatementTerm GetRandomMotorTerm(StatementTerm ignoreTerm)
     {
-        int ignoreIdx = SENSORY_TERM_SET.IndexOf(ignoreTerm);
+        int ignoreIdx = MOTOR_TERM_SET.IndexOf(ignoreTerm);
         int rnd = GetRandomIndexSkipping(MOTOR_TERM_SET.Count, ignoreIdx);
         return MOTOR_TERM_SET[rnd];
     }
+
+    public StatementTerm GetRandomSensoryTerm(IReadOnlyCollection<StatementTerm> ignoreTerms)
+    {
+        var ignoreIdxs = new List<int>();
+
+        if (ignoreTerms != null)
+        {
+            foreach (var term in ignoreTerms)
+            {
+                int idx = SENSORY_TERM_SET.IndexOf(term);
+                if (idx >= 0)
+                    ignoreIdxs.Add(idx);
+            }
+        }
+
+        int rnd = GetRandomIndexSkipping(SENSORY_TERM_SET.Count, ignoreIdxs);
+        return SENSORY_TERM_SET[rnd];
+    }
+
+    public StatementTerm GetRandomMotorTerm(IReadOnlyCollection<StatementTerm> ignoreTerms)
+    {
+        var ignoreIdxs = new List<int>();
+
+        if (ignoreTerms != null)
+        {
+            foreach (var term in ignoreTerms)
+            {
+                int idx = MOTOR_TERM_SET.IndexOf(term); // <-- fixed to MOTOR_TERM_SET
+                if (idx >= 0)
+                    ignoreIdxs.Add(idx);
+            }
+        }
+
+        int rnd = GetRandomIndexSkipping(MOTOR_TERM_SET.Count, ignoreIdxs);
+        return MOTOR_TERM_SET[rnd];
+    }
+
 
     public void AddNewBelief(EvolvableSentence belief)
     {
@@ -942,8 +1176,8 @@ public class NARSGenome
         NARSGenome parent2 = (NARSGenome)parent2genome;
         int longer_array = math.max(parent1.beliefs.Count, parent2.beliefs.Count);
 
-        NARSGenome offspring1 = new();
-        NARSGenome offspring2 = new();
+        NARSGenome offspring1 = new(); offspring1.beliefs.Clear();
+        NARSGenome offspring2 = new(); offspring2.beliefs.Clear();
 
         if (USE_AND_EVOLVE_CONTINGENCIES())
         {

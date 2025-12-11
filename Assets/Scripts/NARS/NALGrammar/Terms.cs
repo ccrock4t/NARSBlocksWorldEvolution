@@ -10,6 +10,7 @@ Helper Functions
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.RegularExpressions;
 
@@ -515,6 +516,10 @@ public class CompoundTerm : Term
         {
             // order doesn't matter, alphabetize so the system can recognize the same term
             sub.Sort((x, y) => x.ToString().CompareTo(y.ToString()));
+        }
+        if(sub.Count != sub.Distinct().Count())
+        {
+            UnityEngine.Debug.LogError("duplicate terms "+ subterms);
         }
         this.subterms = sub;
         this.connector = term_connector;

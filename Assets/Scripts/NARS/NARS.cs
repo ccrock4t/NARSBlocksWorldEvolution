@@ -25,6 +25,7 @@ public class NARS
 
     public NARSInferenceEngine inferenceEngine;
     public Memory memory;
+
     public Buffer<Sentence> global_buffer;
     public TemporalModule temporal_module;
 
@@ -115,7 +116,7 @@ public class NARS
             Sentence buffer_item = this.global_buffer.take().obj;
             tasks_left--;
 
-            if (buffer_item is Goal && this.inferenceEngine.get_sentence_value_time_decayed(buffer_item).confidence < 0.2)
+            if (buffer_item is Goal && this.inferenceEngine.get_sentence_value_time_decayed(buffer_item).confidence < 0.1)
             {
                 continue;
             }
@@ -625,9 +626,22 @@ public class NARS
                         //StatementTerm first_subterm_statement_unified = new StatementTerm(sensory_subject, unification_term, Copula.Inheritance);
                         //first_subterm_statement = first_subterm_statement_unified;
                     //  }
-                    //first belief was not positive, so derive a goal to make it positive
-                    Goal first_subterm_goal = (Goal)this.helperFunctions.create_resultant_sentence_one_premise(j, first_subterm_statement, null, j.evidential_value);
-                    this.global_buffer.PUT_NEW(first_subterm_goal);
+
+
+                    //if(first_subterm_statement is CompoundTerm c && first_subterm_statement.connector == TermConnector.ParallelConjunction)
+                    //{
+                    //    foreach(var subterm in c.subterms)
+                    //    {
+                    //        Goal subtermgoal = (Goal)this.helperFunctions.create_resultant_sentence_one_premise(j, c.subterms[1], null, j.evidential_value);
+                    //        this.global_buffer.PUT_NEW(subtermgoal);
+                    //    }
+                    //}
+                    //else
+                    //{
+                        //first belief was not positive, so derive a goal to make it positive
+                        Goal first_subterm_goal = (Goal)this.helperFunctions.create_resultant_sentence_one_premise(j, first_subterm_statement, null, j.evidential_value);
+                        this.global_buffer.PUT_NEW(first_subterm_goal);
+                    //}
                 }
                 
                 //else if (statement.connector == TermConnector.Negation && TermConnectorMethods.is_conjunction(((CompoundTerm)statement).subterms[0].connector))
