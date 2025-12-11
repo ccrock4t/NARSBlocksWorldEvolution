@@ -23,6 +23,7 @@ public class NARSGenome
     public int SIZE_LIMIT = 10;
 
 
+
     public enum NARS_Evolution_Type
     {
         NARS_NO_CONTINGENCY_FIXED_PERSONALITY_LEARNING,
@@ -1176,8 +1177,12 @@ public class NARSGenome
         NARSGenome parent2 = (NARSGenome)parent2genome;
         int longer_array = math.max(parent1.beliefs.Count, parent2.beliefs.Count);
 
-        NARSGenome offspring1 = new(); offspring1.beliefs.Clear();
-        NARSGenome offspring2 = new(); offspring2.beliefs.Clear();
+        NARSGenome offspring1 = new(); 
+        offspring1.beliefs.Clear();
+        offspring1.belief_statement_strings.Clear();
+        NARSGenome offspring2 = new(); 
+        offspring2.beliefs.Clear();
+        offspring2.belief_statement_strings.Clear();
 
         if (USE_AND_EVOLVE_CONTINGENCIES())
         {
