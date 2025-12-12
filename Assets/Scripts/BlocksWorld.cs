@@ -17,7 +17,7 @@ public class BlocksWorld : MonoBehaviour
     [Header("Block Settings")]
     [SerializeField] private GameObject blockPrefab;
     [SerializeField] private GameObject canvas;
-    public static int numberOfBlocks = 3;
+    public static int numberOfBlocks = 4;
 
     // Canvas-space spacing (in pixels if using Screen Space)
     [SerializeField] private float horizontalSpacing = 150f;
@@ -820,6 +820,102 @@ public class BlocksWorld : MonoBehaviour
                 if (img != null) img.color = GetColorForBlock(name);
             }
         }
+    }
+    public enum ActionType { STACK, UNSTACK }
+
+    public struct MotorAction
+    {
+        public ActionType type;
+        public string a;   // for UNSTACK: block; for STACK: top
+        public string b;   // for STACK: bottom; for UNSTACK: unused
+
+        public MotorAction(ActionType type, string a, string b = null)
+        {
+            this.type = type;
+            this.a = a;
+            this.b = b;
+        }
+
+        public override string ToString()
+            => type == ActionType.UNSTACK ? $"UNSTACK({a})" : $"STACK({a},{b})";
+    }
+
+    /// <summary>
+    /// Return all currently valid motor actions given the current 'on'/'clear' state.
+    /// </summary>
+    public List<MotorAction> GetValidMotorActions()
+    {
+        var actions = new List<MotorAction>();
+
+        // UNSTACK(block): valid iff Clear(block) && !OnTable(block)
+        foreach (var block in blockNames)
+        {
+            if (ClearPredicate(block) && !OnTablePredicate(block))
+                actions.Add(new MotorAction(ActionType.UNSTACK, block));
+        }
+
+        // STACK(top, bottom): valid iff Clear(top) && Clear(bottom) && top!=bottom && not already stacked
+        for (int i = 0; i < blockNames.Count; i++)
+        {
+            string top = blockNames[i];
+            if (!ClearPredicate(top)) continue;
+
+            for (int j = 0; j < blockNames.Count; j++)
+            {
+                if (i == j) continue;
+                string bottom = blockNames[j];
+
+                if (!ClearPredicate(bottom)) continue;
+                if (OnPredicate(top, bottom)) continue;
+
+                actions.Add(new MotorAction(ActionType.STACK, top, bottom));
+            }
+        }
+
+        return actions;
+    }
+
+    /// <summary>
+    /// Pick a random valid action. Returns false if none exist.
+    /// </summary>
+    public bool TryGetRandomValidMotorAction(out MotorAction action)
+    {
+        var actions = GetValidMotorActions();
+        if (actions.Count == 0)
+        {
+            action = default;
+            return false;
+        }
+
+        action = actions[Random.Range(0, actions.Count)];
+        return true;
+    }
+
+    /// <summary>
+    /// Convert a MotorAction into your StatementTerm format.
+    /// (Matches the strings you used when building MOTOR_TERM_SET)
+    /// </summary>
+    public StatementTerm MotorActionToStatementTerm(MotorAction action)
+    {
+        if (action.type == ActionType.UNSTACK)
+            return (StatementTerm)Term.from_string($"((*,{{SELF}},{action.a}) --> UNSTACK)");
+
+        // STACK
+        return (StatementTerm)Term.from_string($"((*,{{SELF}},{action.a},{action.b}) --> STACK)");
+    }
+
+    /// <summary>
+    /// Convenience: get a random valid motor StatementTerm directly.
+    /// </summary>
+    public bool TryGetRandomValidMotorTerm(out StatementTerm motorTerm)
+    {
+        motorTerm = null;
+
+        if (!TryGetRandomValidMotorAction(out var act))
+            return false;
+
+        motorTerm = MotorActionToStatementTerm(act);
+        return true;
     }
 
 }

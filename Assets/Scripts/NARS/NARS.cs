@@ -47,10 +47,11 @@ public class NARS
 
     public System.Random random;
 
-
+    public BlocksWorld blocksWorld;
     public NARSGenome genome;
-    public NARS(NARSGenome nars_genome)
+    public NARS(NARSGenome nars_genome, BlocksWorld blocksworld)
     {
+        this.blocksWorld = blocksworld;
         this.random = new System.Random();
         this.config = new NARSConfig();
         this.inferenceEngine = new NARSInferenceEngine(this);
@@ -739,10 +740,8 @@ public class NARS
 
     void MotorBabble()
     {
-        if (UnityEngine.Random.value < 0.98f) return;
-        var motor_terms = NARSGenome.MOTOR_TERM_SET;
-        int rnd = UnityEngine.Random.Range(0, motor_terms.Count);
-        var motor_term = motor_terms[rnd];
+        this.blocksWorld.TryGetRandomValidMotorTerm(out var motor_term);
+       
         SendInput(new Goal(this, motor_term, new EvidentialValue(1.0f, 0.9999f), occurrence_time: current_cycle_number));
     }
 

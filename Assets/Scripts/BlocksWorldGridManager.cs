@@ -27,8 +27,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private int _fixedUpdateCounter = 0;
 
-    public static int episode_length = 75;
-    public static int train_length = 100;
+    public static int episode_length = 150;
+    public static int train_length = 200;
     public const int NUM_OF_NARS_AGENTS = 25;
     AnimatTable hallOfFameTable;
     AnimatTable recentTable;
@@ -52,7 +52,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         public NARS nars;
         public NARSBody narsBody;
 
-        public Agent(NARSGenome gene)
+        public Agent(NARSGenome gene, BlocksWorld blocksworld)
         {
             if(gene == null)
             {
@@ -62,16 +62,17 @@ public class BlocksWorldGridManager : MonoBehaviour
             {
                 genome = gene;
             }
-            nars = new NARS(genome);
+            nars = new NARS(genome, blocksworld);
             narsBody = new(nars);
         }
 
         public void Reset()
         {
-            nars = new NARS(genome);
+            nars = new NARS(genome, null);
             narsBody.ResetForEpisode(nars);
         }
 
+        
     }
 
     public class BlocksWorldInstance
@@ -82,7 +83,7 @@ public class BlocksWorldGridManager : MonoBehaviour
 
         public BlocksWorldInstance(BlocksWorld blocksworld, NARSGenome gene)
         {
-            this.agent = new Agent(gene);
+            this.agent = new Agent(gene, blocksworld);
             this.blocksworld = blocksworld;
         }
 
@@ -90,6 +91,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         {
             this.agent.Reset();
         }
+
     }
 
     public List<BlocksWorldInstance> population = new();
@@ -128,6 +130,7 @@ public class BlocksWorldGridManager : MonoBehaviour
 
                 worldInstance.agent.genome.SetIdealGoal(world);
                 worldInstance.blocksworld = world;
+                worldInstance.agent.nars.blocksWorld = world;
             }
         }
     }
@@ -333,11 +336,26 @@ public class BlocksWorldGridManager : MonoBehaviour
         // mean (average) and median
         int count = hallOfFameTable.Count();
         float mean = (count > 0) ? (hallOfFameTable.total_score / count) : 0f;
+        int runtime1 = 0;
+        int runtime2 = 0;
+        int runtime3 = 0;
+        float conf = 0;
+        if(best_genome != null)
+        {
+            runtime1 = best_genome.personality_parameters.RuntimeCompounds1;
+            runtime2 = best_genome.personality_parameters.RuntimeCompounds2;
+            runtime3 = best_genome.personality_parameters.RuntimeCompounds3;
+            conf = best_genome.personality_parameters.Compound_Confidence;
+        }
        // float median = GetMedianTableScore();
 
         string line = string.Join(",",
             maxTable.ToString(CultureInfo.InvariantCulture),
-            mean.ToString(CultureInfo.InvariantCulture)//,
+            mean.ToString(CultureInfo.InvariantCulture),
+            runtime1.ToString(CultureInfo.InvariantCulture),
+            runtime2.ToString(CultureInfo.InvariantCulture),
+            runtime3.ToString(CultureInfo.InvariantCulture),
+            conf.ToString(CultureInfo.InvariantCulture)
             //median.ToString(CultureInfo.InvariantCulture)
         );
 
@@ -358,7 +376,7 @@ public class BlocksWorldGridManager : MonoBehaviour
 
         _csvPath = Path.Combine(root, $"stats_{stamp}.csv");
         _csv = new StreamWriter(_csvPath, false);
-        _csv.WriteLine("max_table_score,mean_table_score");//,median_table_score");
+        _csv.WriteLine("max_table_score,mean_table_score,runtimeCompound1,runtimeCompound2,runtimeCompound3,runtimeContingencyConfidence");//,median_table_score");
 
         _csv.Flush();
 

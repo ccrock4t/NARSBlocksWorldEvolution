@@ -421,6 +421,7 @@ public class TemporalModule
                             implication.evidential_value.frequency = 1.0f;
                             implication.evidential_value.confidence = this.nars.config.COMPOUND_CONFIDENCE;
                             ProcessSentence(implication);
+
                         }
                     }
                 }
