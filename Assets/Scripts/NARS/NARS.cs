@@ -88,7 +88,10 @@ public class NARS
         this.config.MAX_EVIDENTIAL_BASE_LENGTH = nars_genome.personality_parameters.Evidential_Base_Length;
         this.config.PROJECTION_DECAY_EVENT = nars_genome.personality_parameters.Time_Projection_Event;
         this.config.PROJECTION_DECAY_DESIRE = nars_genome.personality_parameters.Time_Projection_Goal;
-       // this.config.GENERALIZATION_CONFIDENCE = nars_genome.personality_parameters.Generalization_Confidence;
+        this.config.RUNTIME_COMPOUNDS1 = nars_genome.personality_parameters.RuntimeCompounds1 == 1;
+        this.config.RUNTIME_COMPOUNDS2 = nars_genome.personality_parameters.RuntimeCompounds2 == 1;
+        this.config.RUNTIME_COMPOUNDS3 = nars_genome.personality_parameters.RuntimeCompounds3 == 1;
+        this.config.COMPOUND_CONFIDENCE = nars_genome.personality_parameters.Compound_Confidence;
 
     }
 
@@ -129,15 +132,15 @@ public class NARS
 
 
 
-        if (NARSGenome.USE_LEARNING())
-        {
-            this.temporal_module.UpdateAnticipations();
-            Parallel.ForEach(this.memory.concepts_bag, concept_item =>
-            {
-                var concept = concept_item.obj;
-                concept.belief_table.Forget();
-            });
-        }
+        //if (NARSGenome.USE_LEARNING())
+        //{
+        //    this.temporal_module.UpdateAnticipations();
+        //    Parallel.ForEach(this.memory.concepts_bag, concept_item =>
+        //    {
+        //        var concept = concept_item.obj;
+        //        concept.belief_table.Forget();
+        //    });
+        //}
 
     }
 
@@ -672,9 +675,9 @@ public class NARS
                 // process j! with random context-relevant explanation E = (P =/> j).
                 int explanation_count = statement_concept.explanation_links.GetCount();
 
-                if (explanation_count == 0)
+                if (explanation_count == 0 || (BlocksWorldGridManager.train))
                 {
-                    if (NARSGenome.USE_LEARNING())
+                    if (NARSGenome.USE_LEARNING() && BlocksWorldGridManager.train)
                     {
                         // no explanations, so babble to learn one
                         MotorBabble();
@@ -740,7 +743,7 @@ public class NARS
         var motor_terms = NARSGenome.MOTOR_TERM_SET;
         int rnd = UnityEngine.Random.Range(0, motor_terms.Count);
         var motor_term = motor_terms[rnd];
-        SendInput(new Goal(this, motor_term, new EvidentialValue(1.0f, 0.99f), occurrence_time: current_cycle_number));
+        SendInput(new Goal(this, motor_term, new EvidentialValue(1.0f, 0.9999f), occurrence_time: current_cycle_number));
     }
 
     public List<Sentence> process_sentence_semantic_inference(Sentence j1, Concept? related_concept = null)

@@ -16,7 +16,7 @@ public class NARSGenome
     const float CHANCE_TO_MUTATE_BELIEFS = 0.8f;
 
     const bool ALLOW_VARIABLES = false;
-    const bool ALLOW_COMPOUNDS = true;
+    const bool ALLOW_COMPOUNDS = false;
     public static bool USE_GENERALIZATION = false;
 
     public bool LIMIT_SIZE = false;
@@ -41,7 +41,7 @@ public class NARSGenome
         NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING
     }
 
-    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_AND_CONTINGENCIES_NO_LEARNING;
+    public static NARS_Evolution_Type NARS_EVOLVE_TYPE = NARS_Evolution_Type.NARS_EVOLVE_PERSONALITY_LEARNING;
 
 
     public static bool RANDOM_PERSONALITY()
@@ -119,7 +119,14 @@ public class NARSGenome
         public float Time_Projection_Event;
         public float Time_Projection_Goal;
 
-        public float Generalization_Confidence;
+        public float Compound_Confidence;
+
+
+
+        public int RuntimeCompounds1;
+        public int RuntimeCompounds2;
+        public int RuntimeCompounds3;
+
 
         public float Get(int i)
         {
@@ -132,7 +139,10 @@ public class NARSGenome
             else if (i == 6) return Evidential_Base_Length;
             else if (i == 7) return Time_Projection_Event;
             else if (i == 8) return Time_Projection_Goal;
-            else if (i == 9) return Generalization_Confidence;
+            else if (i == 9) return Compound_Confidence;
+            else if (i == 10) return RuntimeCompounds1;
+            else if (i == 11) return RuntimeCompounds2;
+            else if (i == 12) return RuntimeCompounds3;
             else Debug.LogError("error");
             return -1;
         }
@@ -148,7 +158,10 @@ public class NARSGenome
             else if (i == 6) return "Evidential_Base_Length";
             else if (i == 7) return "Time_Projection_Event";
             else if (i == 8) return "Time_Projection_Goal";
-            else if (i == 9) return "Generalization_Confidence";
+            else if (i == 9) return "Compound_Confidence";
+            else if (i == 10) return "RuntimeCompounds1";
+            else if (i == 11) return "RuntimeCompounds2";
+            else if (i == 12) return "RuntimeCompounds3";
             else Debug.LogError("error");
             return "";
         }
@@ -165,13 +178,16 @@ public class NARSGenome
             else if (i == 6) Evidential_Base_Length = (int)value;
             else if (i == 7) Time_Projection_Event = (float)value;
             else if (i == 8) Time_Projection_Goal = (float)value;
-            else if (i == 9) Generalization_Confidence = (float)value;
+            else if (i == 9) Compound_Confidence = (float)value;
+            else if (i == 10) RuntimeCompounds1 = (int)value;
+            else if (i == 11) RuntimeCompounds2 = (int)value;
+            else if (i == 12) RuntimeCompounds3 = (int)value;
             else Debug.LogError("error");
         }
 
         public static int GetParameterCount()
         {
-            return 10;
+            return 13;
         }
     }
 
@@ -289,7 +305,7 @@ public class NARSGenome
         personality_parameters.Time_Projection_Goal = 1;
 
         // Generalization Confidence
-        personality_parameters.Generalization_Confidence = 0.99f;
+        personality_parameters.Compound_Confidence = 0.99f;
 
 
         return personality_parameters;
@@ -333,9 +349,16 @@ public class NARSGenome
         var timeProjectionGoalRange = GetTimeProjectionGoalRange();
         personality_parameters.Time_Projection_Goal = UnityEngine.Random.Range(timeProjectionGoalRange.x, timeProjectionGoalRange.y);
 
-        // Time ProjectionGoal
-        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
-        personality_parameters.Generalization_Confidence = UnityEngine.Random.Range(generalizationConfidenceRange.x, generalizationConfidenceRange.y);
+        // Compound Confidence
+        var compoundConfidenceRange = GetCompoundConfidenceRange();
+        personality_parameters.Compound_Confidence = UnityEngine.Random.Range(compoundConfidenceRange.x, compoundConfidenceRange.y);
+
+
+        // Runtime compounds
+        var runtimeCompoundRange = GetRuntimeCompoundRange();
+        personality_parameters.RuntimeCompounds1 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
+        personality_parameters.RuntimeCompounds2 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
+        personality_parameters.RuntimeCompounds3 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
     }
 
 
@@ -377,12 +400,14 @@ public class NARSGenome
     private static Vector2 GetTRange() => new(0.51f, 1f);
     private static Vector2 GetTimeProjectionEventRange() => new(0.0000001f, 10f);
     private static Vector2 GetTimeProjectionGoalRange() => new(0.0000001f, 10f);
-    private static Vector2 GetGeneralizationConfidenceRange() => new(0.0000001f, 0.99999f);
+    private static Vector2 GetCompoundConfidenceRange() => new(0.0000001f, 0.99999f);
     private static Vector2 GetForgettingRateRange() => new(1, 250f);
     private static Vector2Int GetAnticipationWindowRange() => new(1, 30);
-    private static Vector2Int GetEventBufferCapacityRange() => new(3, 20);
+    private static Vector2Int GetEventBufferCapacityRange() => new(3, 30);
     private static Vector2Int GetTableCapacityRange() => new(1, 20);
     private static Vector2Int GetEvidentialBaseLengthRange() => new(1, 50);
+
+    private static Vector2Int GetRuntimeCompoundRange() => new(0, 1);
 
     // Local helpers
     void MutateFloat(ref float field, Vector2 range, float replaceChance, float mutate_chance)
@@ -412,6 +437,16 @@ public class NARSGenome
         {
             field += (int)GetPerturbationFromRange(range);
         }
+        field = (int)math.clamp(field, range.x, range.y);
+    }
+
+    void MutateBool(ref int field, Vector2Int range, float mutate_chance)
+    {
+        if (UnityEngine.Random.value < (1f - mutate_chance)) return; // certain chance to mutate
+
+        // int Random.Range max is exclusive; add +1 to include range.y
+        field = UnityEngine.Random.Range(range.x, range.y + 1);
+
         field = (int)math.clamp(field, range.x, range.y);
     }
 
@@ -772,6 +807,7 @@ public class NARSGenome
     {
         // tweakable: probability to *replace* a field instead of perturbing it
         const float CHANCE_TO_REPLACE_PARAM = 0.05f;
+        const float CHANCE_TO_TOGGLE_BOOL = 0.1f;
 
         const float CHANCE_TO_MUTATE = 0.6f;
 
@@ -811,9 +847,15 @@ public class NARSGenome
         var timeProjectionGoalRange = GetTimeProjectionGoalRange();
         MutateFloat(ref this.personality_parameters.Time_Projection_Goal, timeProjectionGoalRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
 
-        // --- Generalization Confidence ---
-        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
-        MutateFloat(ref this.personality_parameters.Generalization_Confidence, generalizationConfidenceRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+        // --- Compound Confidence ---
+        var generalizationConfidenceRange = GetCompoundConfidenceRange();
+        MutateFloat(ref this.personality_parameters.Compound_Confidence, generalizationConfidenceRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+       
+        // flip compounding on/off
+        var compoundRange = GetRuntimeCompoundRange();
+        MutateBool(ref this.personality_parameters.RuntimeCompounds1, compoundRange, CHANCE_TO_TOGGLE_BOOL);
+        MutateBool(ref this.personality_parameters.RuntimeCompounds2, compoundRange, CHANCE_TO_TOGGLE_BOOL);
+        MutateBool(ref this.personality_parameters.RuntimeCompounds3, compoundRange, CHANCE_TO_TOGGLE_BOOL);
     }
 
 

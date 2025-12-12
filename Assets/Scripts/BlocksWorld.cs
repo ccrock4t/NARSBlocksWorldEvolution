@@ -51,6 +51,10 @@ public class BlocksWorld : MonoBehaviour
     // Has the goal configuration been achieved?
     public bool goalReached = false;
 
+    // --- Snapshot of the ORIGINAL (initial) world state ---
+    private Dictionary<string, string> originalOn;
+    private HashSet<string> originalClear;
+
 
     public void Initialize()
     {
@@ -74,6 +78,9 @@ public class BlocksWorld : MonoBehaviour
 
         // 2. Generate an initial state that is as far as possible from the goal
         GenerateFarInitialFromGoal();
+
+        // Cache original world (so we can reset later)
+        CacheOriginalWorldState();
 
         // 3. Lay out initial state and print goal
         LayoutBlocksFromState(on);
@@ -723,6 +730,7 @@ public class BlocksWorld : MonoBehaviour
     #endregion
     private void CheckGoalReached()
     {
+        if (BlocksWorldGridManager.train) return;
         if (goalReached) return;   // already in goal, don't re-do
 
         // Compare current "on" mapping with the goal "on" mapping.
@@ -768,4 +776,50 @@ public class BlocksWorld : MonoBehaviour
     }
 
     #endregion
+
+    private void CacheOriginalWorldState()
+    {
+        originalOn = new Dictionary<string, string>(on.Count);
+        foreach (var kvp in on)
+            originalOn[kvp.Key] = kvp.Value;
+
+        originalClear = new HashSet<string>(clear);
+    }
+
+    public void ResetWorldToOriginalState()
+    {
+        if (originalOn == null || originalClear == null)
+        {
+            Debug.LogWarning("ResetWorldToOriginalState called before original state was cached. Call Initialize() first.");
+            return;
+        }
+
+        // Restore logical state
+        on.Clear();
+        foreach (var kvp in originalOn)
+            on[kvp.Key] = kvp.Value;
+
+        clear.Clear();
+        foreach (var b in originalClear)
+            clear.Add(b);
+
+        // Restore flags / visuals
+        goalReached = false;
+
+        // If Clear should always be derived from On, you can do this instead:
+        // RecomputeClear();
+
+        LayoutBlocksFromState(on);
+
+        // Optional: restore per-block colors to their deterministic colors
+        foreach (var name in blockNames)
+        {
+            if (blocks.TryGetValue(name, out var data))
+            {
+                var img = data.instance.GetComponent<Image>();
+                if (img != null) img.color = GetColorForBlock(name);
+            }
+        }
+    }
+
 }

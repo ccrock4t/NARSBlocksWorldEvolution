@@ -27,7 +27,8 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private int _fixedUpdateCounter = 0;
 
-    public static int episode_length = 35;
+    public static int episode_length = 75;
+    public static int train_length = 100;
     public const int NUM_OF_NARS_AGENTS = 25;
     AnimatTable hallOfFameTable;
     AnimatTable recentTable;
@@ -36,6 +37,7 @@ public class BlocksWorldGridManager : MonoBehaviour
     [SerializeField] TextMeshProUGUI HighScoreTxt;
     [SerializeField] TextMeshProUGUI GenerationTxt;
     [SerializeField] TextMeshProUGUI EpisodeTxt;
+    [SerializeField] TextMeshProUGUI TrainTxt;
     float high_score;
 
 
@@ -166,6 +168,15 @@ public class BlocksWorldGridManager : MonoBehaviour
         }
     }
 
+    public void ResetAfterTraining()
+    {
+        foreach (var instance in population)
+        {
+            instance.agent.narsBody.ResetEpisodeFitness();
+            instance.blocksworld.ResetWorldToOriginalState();
+        }
+    }
+
     public void FinishEpisode()
     {
         foreach (var instance in population)
@@ -205,6 +216,7 @@ public class BlocksWorldGridManager : MonoBehaviour
     }
 
 
+    public static bool train = true;
     void FixedUpdate()
     {
         _fixedUpdateCounter++;
@@ -215,26 +227,34 @@ public class BlocksWorldGridManager : MonoBehaviour
             timestep++;
             UpdateUI();
   
-            if (timestep < episode_length)
+            if ((!train && timestep < episode_length) || (train && timestep < train_length))
             {
                 StepSimulation();
             }
             else
             {
-                episode_counter++;
-                FinishEpisode();
-                if (episode_counter >= EPISODES_PER_GENERATION)
+                if (!train)
                 {
-                    FinishGeneration();
-                    GC.Collect();
-                    SpawnNewGeneration(false);
-                    episode_counter = 0;
-                    generation_counter++;
+                    episode_counter++;
+                    FinishEpisode();
+                    if (episode_counter >= EPISODES_PER_GENERATION)
+                    {
+                        FinishGeneration();
+                        GC.Collect();
+                        SpawnNewGeneration(false);
+                        episode_counter = 0;
+                        generation_counter++;
+                    }
+
+                    SpawnNewEpisode();
+                    train = true;
                 }
-             
-                SpawnNewEpisode();
-                
-            
+                else
+                {
+                    ResetAfterTraining();
+                    train = false;
+                }
+
                 timestep = 0;
             }
             // WriteCsvRow();   // still runs on each tick
@@ -384,6 +404,7 @@ public class BlocksWorldGridManager : MonoBehaviour
         HighScoreTxt.text = "High Score: " + high_score;
         GenerationTxt.text = "Generation: " + generation_counter;
         EpisodeTxt.text = "Episode: " + episode_counter;
+        TrainTxt.text = "Train: " + train;
         // timestepTXT.text = "Timestep: " + timestep;
         // scoreTXT.text = "High Score: " + high_score;
         // genomeSizeTXT.text = "Largest genome: " + largest_genome;

@@ -95,4 +95,9 @@ public class NARSBody
     {
         return (float)uniqueStates.Count;
     }
+
+    internal void ResetEpisodeFitness()
+    {
+        uniqueStates.Clear();
+    }
 }
