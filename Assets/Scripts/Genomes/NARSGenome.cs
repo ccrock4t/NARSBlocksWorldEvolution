@@ -15,7 +15,7 @@ public class NARSGenome
     const float CHANCE_TO_MUTATE_PERSONALITY_PARAMETERS = 0.8f;
     const float CHANCE_TO_MUTATE_BELIEFS = 0.8f;
 
-    const bool ALLOW_VARIABLES = false;
+    const bool ALLOW_VARIABLES = true;
     const bool ALLOW_COMPOUNDS = true;
     public static bool USE_GENERALIZATION = false;
 
@@ -119,7 +119,14 @@ public class NARSGenome
         public float Time_Projection_Event;
         public float Time_Projection_Goal;
 
-        public float Generalization_Confidence;
+        public float Compound_Confidence;
+
+
+
+        public int RuntimeCompounds1;
+        public int RuntimeCompounds2;
+        public int RuntimeCompounds3;
+
 
         public float Get(int i)
         {
@@ -132,7 +139,10 @@ public class NARSGenome
             else if (i == 6) return Evidential_Base_Length;
             else if (i == 7) return Time_Projection_Event;
             else if (i == 8) return Time_Projection_Goal;
-            else if (i == 9) return Generalization_Confidence;
+            else if (i == 9) return Compound_Confidence;
+            else if (i == 10) return RuntimeCompounds1;
+            else if (i == 11) return RuntimeCompounds2;
+            else if (i == 12) return RuntimeCompounds3;
             else Debug.LogError("error");
             return -1;
         }
@@ -148,7 +158,10 @@ public class NARSGenome
             else if (i == 6) return "Evidential_Base_Length";
             else if (i == 7) return "Time_Projection_Event";
             else if (i == 8) return "Time_Projection_Goal";
-            else if (i == 9) return "Generalization_Confidence";
+            else if (i == 9) return "Compound_Confidence";
+            else if (i == 10) return "RuntimeCompounds1";
+            else if (i == 11) return "RuntimeCompounds2";
+            else if (i == 12) return "RuntimeCompounds3";
             else Debug.LogError("error");
             return "";
         }
@@ -165,13 +178,16 @@ public class NARSGenome
             else if (i == 6) Evidential_Base_Length = (int)value;
             else if (i == 7) Time_Projection_Event = (float)value;
             else if (i == 8) Time_Projection_Goal = (float)value;
-            else if (i == 9) Generalization_Confidence = (float)value;
+            else if (i == 9) Compound_Confidence = (float)value;
+            else if (i == 10) RuntimeCompounds1 = (int)value;
+            else if (i == 11) RuntimeCompounds2 = (int)value;
+            else if (i == 12) RuntimeCompounds3 = (int)value;
             else Debug.LogError("error");
         }
 
         public static int GetParameterCount()
         {
-            return 10;
+            return 13;
         }
     }
 
@@ -289,7 +305,7 @@ public class NARSGenome
         personality_parameters.Time_Projection_Goal = 1;
 
         // Generalization Confidence
-        personality_parameters.Generalization_Confidence = 0.99f;
+        personality_parameters.Compound_Confidence = 0.99f;
 
 
         return personality_parameters;
@@ -333,9 +349,16 @@ public class NARSGenome
         var timeProjectionGoalRange = GetTimeProjectionGoalRange();
         personality_parameters.Time_Projection_Goal = UnityEngine.Random.Range(timeProjectionGoalRange.x, timeProjectionGoalRange.y);
 
-        // Time ProjectionGoal
-        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
-        personality_parameters.Generalization_Confidence = UnityEngine.Random.Range(generalizationConfidenceRange.x, generalizationConfidenceRange.y);
+        // Compound Confidence
+        var compoundConfidenceRange = GetCompoundConfidenceRange();
+        personality_parameters.Compound_Confidence = UnityEngine.Random.Range(compoundConfidenceRange.x, compoundConfidenceRange.y);
+
+
+        // Runtime compounds
+        var runtimeCompoundRange = GetRuntimeCompoundRange();
+        personality_parameters.RuntimeCompounds1 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
+        personality_parameters.RuntimeCompounds2 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
+        personality_parameters.RuntimeCompounds3 = UnityEngine.Random.Range(runtimeCompoundRange.x, runtimeCompoundRange.y + 1);
     }
 
 
@@ -377,12 +400,14 @@ public class NARSGenome
     private static Vector2 GetTRange() => new(0.51f, 1f);
     private static Vector2 GetTimeProjectionEventRange() => new(0.0000001f, 10f);
     private static Vector2 GetTimeProjectionGoalRange() => new(0.0000001f, 10f);
-    private static Vector2 GetGeneralizationConfidenceRange() => new(0.0000001f, 0.99999f);
+    private static Vector2 GetCompoundConfidenceRange() => new(0.0000001f, 0.99999f);
     private static Vector2 GetForgettingRateRange() => new(1, 250f);
     private static Vector2Int GetAnticipationWindowRange() => new(1, 30);
-    private static Vector2Int GetEventBufferCapacityRange() => new(3, 20);
+    private static Vector2Int GetEventBufferCapacityRange() => new(3, 30);
     private static Vector2Int GetTableCapacityRange() => new(1, 20);
     private static Vector2Int GetEvidentialBaseLengthRange() => new(1, 50);
+
+    private static Vector2Int GetRuntimeCompoundRange() => new(0, 1);
 
     // Local helpers
     void MutateFloat(ref float field, Vector2 range, float replaceChance, float mutate_chance)
@@ -412,6 +437,16 @@ public class NARSGenome
         {
             field += (int)GetPerturbationFromRange(range);
         }
+        field = (int)math.clamp(field, range.x, range.y);
+    }
+
+    void MutateBool(ref int field, Vector2Int range, float mutate_chance)
+    {
+        if (UnityEngine.Random.value < (1f - mutate_chance)) return; // certain chance to mutate
+
+        // int Random.Range max is exclusive; add +1 to include range.y
+        field = UnityEngine.Random.Range(range.x, range.y + 1);
+
         field = (int)math.clamp(field, range.x, range.y);
     }
 
@@ -445,7 +480,7 @@ public class NARSGenome
         float rnd = UnityEngine.Random.value;
         if (rnd < CHANCE_TO_MUTATE_BELIEF_CONTENT)
         {
-            if (ALLOW_VARIABLES)
+            if (ALLOW_VARIABLES && !ALLOW_COMPOUNDS)
             {
                 int r = UnityEngine.Random.Range(0, 100); // 0–99
 
@@ -467,11 +502,11 @@ public class NARSGenome
                     ToggleVariableRandomBelief();
                 }
             }
-            else if(ALLOW_COMPOUNDS)
+            else if (ALLOW_COMPOUNDS && !ALLOW_VARIABLES)
             {
                 int r = UnityEngine.Random.Range(0, 100); // 0–99
 
-                if(LIMIT_SIZE && this.beliefs.Count >= SIZE_LIMIT && r < 25)
+                if (LIMIT_SIZE && this.beliefs.Count >= SIZE_LIMIT && r < 25)
                 {
                     r = UnityEngine.Random.Range(25, 100); // 0–99
                 }
@@ -487,6 +522,37 @@ public class NARSGenome
                 else if (r < 75)
                 {
                     ModifyRandomBelief();
+                }
+                else
+                {
+
+                    MutateCompound();
+                }
+            }
+            else if (ALLOW_COMPOUNDS && ALLOW_VARIABLES)
+            {
+                int r = UnityEngine.Random.Range(0, 100); // 0–99
+
+                if (LIMIT_SIZE && this.beliefs.Count >= SIZE_LIMIT && r < 20)
+                {
+                    r = UnityEngine.Random.Range(20, 100); // 0–99
+                }
+
+                if (r < 20)
+                {
+                    AddNewRandomBelief();
+                }
+                else if (r < 40)
+                {
+                    RemoveRandomBelief();
+                }
+                else if (r < 60)
+                {
+                    ModifyRandomBelief();
+                }
+                else if (r < 80)
+                {
+                    ToggleVariableRandomBelief();
                 }
                 else
                 {
@@ -523,15 +589,15 @@ public class NARSGenome
             for (int i = 0; i < this.beliefs.Count; i++)
             {
                 EvolvableSentence sentence = this.beliefs[i];
-           // sentence.evidence.frequency = 1.0f;
-            //sentence.evidence.confidence = 0.999f;
+                // sentence.evidence.frequency = 1.0f;
+                //sentence.evidence.confidence = 0.999f;
                 MutateFloat(ref sentence.evidence.frequency, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
                 MutateFloat(ref sentence.evidence.confidence, truth_range, CHANCE_TO_REPLACE_TRUTH_VALUE, CHANCE_TO_MUTATE);
                 sentence.evidence.confidence = math.clamp(sentence.evidence.confidence, 0.0001f, 0.9999f);
                 this.beliefs[i] = sentence;
             }
         }
-}
+    }
 
     private void MutateCompound()
     {
@@ -557,13 +623,13 @@ public class NARSGenome
         {
             //S
             // compound S
-        
+
             if (S is CompoundTerm sComp)
             {
-                if(Random.value < 0.5 || sComp.subterms.Count == 3)
+                if (Random.value < 0.5 || sComp.subterms.Count == 3)
                 {
                     //remove term
-                    if(sComp.subterms.Count == 2)
+                    if (sComp.subterms.Count == 2)
                     {
                         // make compound into not compound
                         int rnd_subterm_idx = Random.Range(0, 2);
@@ -650,15 +716,15 @@ public class NARSGenome
                         // make not compound into compound
                         List<Term> subterms = new();
                         int i = 0;
-                        foreach(var st in pComp.subterms)
+                        foreach (var st in pComp.subterms)
                         {
-                            if(rnd_subterm_ignore != i)
+                            if (rnd_subterm_ignore != i)
                             {
                                 subterms.Add(st);
                             }
                             i++;
                         }
-                        
+
                         CompoundTerm c = TermHelperFunctions.TryGetCompoundTerm(subterms, TermConnector.ParallelConjunction);
                         new_statement = CreateContingencyStatement(S, M, c);
                     }
@@ -706,21 +772,44 @@ public class NARSGenome
             return;
         }
 
+        string newStr = new_statement.ToString();
+        if (belief_statement_strings.ContainsKey(newStr))
+            return;
+
         belief.statement = new_statement;
-        string new_statement_string = new_statement.ToString();
-        if (belief_statement_strings.ContainsKey(new_statement_string)) return;
 
         belief_statement_strings.Remove(old_statement_string);
-        belief_statement_strings.Add(new_statement_string, true);
-
+        belief_statement_strings.Add(newStr, true);
         this.beliefs[rnd_idx] = belief;
+
     }
+
 
     private void ToggleVariableRandomBelief()
     {
         if (this.beliefs.Count == 0) return;
         int rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
         EvolvableSentence belief = this.beliefs[rnd_idx];
+        CompoundTerm SandM = (CompoundTerm)belief.statement.get_subject_term();
+        StatementTerm testS = (StatementTerm)SandM.subterms[0];
+        int cnt = 0;
+        while (!(testS.term_string.Contains("#x") || testS.term_string.Contains("block")))
+        {
+            rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
+            belief = this.beliefs[rnd_idx];
+            SandM = (CompoundTerm)belief.statement.get_subject_term();
+            testS = (StatementTerm)SandM.subterms[0];
+            cnt++;
+            if (cnt > this.beliefs.Count)
+            {
+                break;
+            }
+        }
+
+        if (cnt > this.beliefs.Count)
+        {
+            return;
+        }
 
         string old_statement_string = belief.statement.ToString();
 
@@ -728,36 +817,210 @@ public class NARSGenome
         StatementTerm implication = belief.statement;
 
         CompoundTerm subject = (CompoundTerm)implication.get_subject_term();
-        StatementTerm predicate = (StatementTerm)implication.get_predicate_term();
+        Term P = implication.get_predicate_term();
 
         StatementTerm new_statement;
 
-        StatementTerm S = (StatementTerm)subject.subterms[0];
+        Term S = (Term)subject.subterms[0];
         StatementTerm M = (StatementTerm)subject.subterms[1];
 
-        Term S_predicate = S.get_predicate_term();
-        Term M_argument = ((CompoundTerm)M.get_subject_term()).subterms[1];
-        StatementTerm new_S = null;
-        StatementTerm new_M = null;
-        if (S_predicate is VariableTerm && M_argument is VariableTerm)
+        bool contains_var = implication.contains_variable();
+
+        Term new_S;
+        Term new_M;
+        Term new_P;
+        if (contains_var)
         {
             //// turn from variable into concrete term
-            //new_S = new StatementTerm(S.get_subject_term(), Term.from_string(AlpineGridManager.GetRandomDirectionString()), Copula.Inheritance);
-            //new_M = new StatementTerm(Term.from_string("(*,{SELF}," + AlpineGridManager.GetRandomDirectionString() + ")"), M.get_predicate_term(), Copula.Inheritance);
-        }
-        else if (S_predicate is AtomicTerm && M_argument is AtomicTerm)
-        {
-            // turn from concrete term into variable
-            new_S = new StatementTerm(S.get_subject_term(), new VariableTerm("x", VariableTerm.VariableType.Dependent), Copula.Inheritance);
-            new_M = new StatementTerm(Term.from_string("(*,{SELF},#x)"), M.get_predicate_term(), Copula.Inheritance);
+            CompoundTerm M_subject;
+            if (M.subterms.Count == 2)
+            {
+                M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + ")");
+            }
+            else if (M.subterms.Count == 3)
+            {
+                if (M.subterms[1].contains_variable())
+                {
+                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + "," + M.subterms[2] + ")");
+                }
+                else if (M.subterms[2].contains_variable())
+                {
+                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M.subterms[1] + "," + GetRandomBlockName() + ")");
+                }
+                else
+                {
+                    Debug.LogError("error");
+                    return;
+                }
+               
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
+            new_M = new StatementTerm(M_subject, M.get_predicate_term(), Copula.Inheritance);
+
+            if (S is StatementTerm sStatement)
+            {
+                new_S = ConcretizeSensoryStatement(sStatement);
+            }
+            else if (S is CompoundTerm sCompound)
+            {
+                List<Term> new_S_subterms = new();
+                for (int i = 0; i < sCompound.subterms.Count; i++)
+                {
+                    if (sCompound.subterms[i].contains_variable())
+                    {
+                        new_S_subterms.Add(ConcretizeSensoryStatement((StatementTerm)sCompound.subterms[i]));
+                    }
+                    else
+                    {
+                        new_S_subterms.Add(sCompound.subterms[i]);
+                    }
+                }
+
+                new_S = TermHelperFunctions.TryGetCompoundTerm(new_S_subterms, (TermConnector)sCompound.connector);
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
+
+            if (P is StatementTerm pStatement)
+            {
+                new_P = ConcretizeSensoryStatement(pStatement);
+            }
+            else if (P is CompoundTerm pCompound)
+            {
+                List<Term> new_P_subterms = new();
+                for (int i = 0; i < pCompound.subterms.Count; i++)
+                {
+                    if (pCompound.subterms[i].contains_variable())
+                    {
+                        new_P_subterms.Add(ConcretizeSensoryStatement((StatementTerm)pCompound.subterms[i]));
+                    }
+                    else
+                    {
+                        new_P_subterms.Add(pCompound.subterms[i]);
+                    }
+                }
+
+                new_P = TermHelperFunctions.TryGetCompoundTerm(new_P_subterms, (TermConnector)pCompound.connector);
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
+
+
         }
         else
         {
-            Debug.LogError("Error");
-            return;
+            //// turn from concrete term into variable
+            CompoundTerm M_subject;
+            if (M.subterms.Count == 2)
+            {
+                M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x)");
+            }
+            else if (M.subterms.Count == 3)
+            {
+                int RND = UnityEngine.Random.Range(0, 2);
+                if (RND == 0)
+                {
+                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x," + M.subterms[2] + ")");
+                }
+                else if(RND == 1)
+                {
+                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M.subterms[1] + ",#x)");
+                }
+                else
+                {
+                    Debug.LogError("error");
+                    return;
+                }
+                
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
+
+            new_M = new StatementTerm(M_subject, M.get_predicate_term(), Copula.Inheritance);
+
+
+            if (S is StatementTerm sStatement)
+            {
+                new_S = VariabilizeSensoryStatement(sStatement);
+            }
+            else if (S is CompoundTerm sCompound)
+            {
+                // S contains multiple statements
+                // select a random statement and variabilize it
+                List<Term> new_S_subterms = new();
+                int rnd_subterm_idx = UnityEngine.Random.Range(0, sCompound.subterms.Count);
+                StatementTerm statement_to_variablize = (StatementTerm)sCompound.subterms[rnd_subterm_idx];
+                StatementTerm variablized_statement = VariabilizeSensoryStatement(statement_to_variablize);
+
+                for (int i = 0; i < sCompound.subterms.Count; i++)
+                {
+                    if(i == rnd_subterm_idx)
+                    {
+                        new_S_subterms.Add(variablized_statement);
+                    }
+                    else
+                    {
+                        new_S_subterms.Add(sCompound.subterms[i]);
+                    }
+                }
+
+                new_S = TermHelperFunctions.TryGetCompoundTerm(new_S_subterms, (TermConnector)sCompound.connector);
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
+
+            if (P is StatementTerm pStatement)
+            {
+                new_P = VariabilizeSensoryStatement(pStatement);
+            }
+            else if (P is CompoundTerm pCompound)
+            {
+                // P contains multiple statements
+                // select a random statement and variabilize it
+                List<Term> new_P_subterms = new();
+                int rnd_subterm_idx = UnityEngine.Random.Range(0, pCompound.subterms.Count);
+                StatementTerm statement_to_variablize = (StatementTerm)pCompound.subterms[rnd_subterm_idx];
+                StatementTerm variablized_statement = VariabilizeSensoryStatement(statement_to_variablize);
+
+                for (int i = 0; i < pCompound.subterms.Count; i++)
+                {
+                    if (i == rnd_subterm_idx)
+                    {
+                        new_P_subterms.Add(variablized_statement);
+                    }
+                    else
+                    {
+                        new_P_subterms.Add(pCompound.subterms[i]);
+                    }
+                }
+
+                new_P = TermHelperFunctions.TryGetCompoundTerm(new_P_subterms, (TermConnector)pCompound.connector);
+            }
+            else
+            {
+                Debug.LogError("error");
+                return;
+            }
         }
 
-        new_statement = CreateContingencyStatement(new_S, new_M, predicate);
+
+        new_statement = CreateContingencyStatement(new_S, new_M, new_P);
         belief.statement = new_statement;
         string new_statement_string = new_statement.ToString();
         if (belief_statement_strings.ContainsKey(new_statement_string)) return;
@@ -768,10 +1031,87 @@ public class NARSGenome
         this.beliefs[rnd_idx] = belief;
     }
 
+    StatementTerm VariabilizeSensoryStatement(StatementTerm statement)
+    {
+        StatementTerm variabilized_statement;
+        // S is a single statement
+        if (statement.get_subject_term() is CompoundTerm c)
+        {
+            // e.g., <(*,A,B) --> On>
+            int rnd_subterm_idx = UnityEngine.Random.Range(0, c.subterms.Count);
+            List<Term> new_subterms = new();
+            for(int i=0; i<c.subterms.Count; i++)
+            {
+                if(i == rnd_subterm_idx)
+                {
+                    new_subterms.Add(new VariableTerm("x", VariableTerm.VariableType.Independent));
+                }
+                else
+                {
+                    new_subterms.Add(c.subterms[i]);
+                }
+            }
+            CompoundTerm new_subject = TermHelperFunctions.TryGetCompoundTerm(new_subterms, (TermConnector)c.connector);
+            variabilized_statement = new StatementTerm(new_subject, statement.get_predicate_term(), Copula.Inheritance);
+        }
+        else if (statement.get_subject_term() is AtomicTerm)
+        {
+            variabilized_statement = new StatementTerm(new VariableTerm("x", VariableTerm.VariableType.Independent), statement.get_predicate_term(), Copula.Inheritance);
+        }
+        else
+        {
+            Debug.LogError("error");
+            return null;
+        }
+        return variabilized_statement;
+    }
+
+    StatementTerm ConcretizeSensoryStatement(StatementTerm statement)
+    {
+        StatementTerm concretized_statement;
+        // S is a single statement
+        if (statement.get_subject_term() is CompoundTerm c)
+        {
+           // e.g., <(*,A,B) --> On>
+            List<Term> new_subterms = new();
+            for (int i = 0; i < c.subterms.Count; i++)
+            {
+                if (c.subterms[i].contains_variable())
+                {
+                    new_subterms.Add(Term.from_string(GetRandomBlockName()));
+                }
+                else
+                {
+                    new_subterms.Add(c.subterms[i]);
+                }
+            }
+            CompoundTerm new_subject = TermHelperFunctions.TryGetCompoundTerm(new_subterms, (TermConnector)c.connector);
+            concretized_statement = new StatementTerm(new_subject, statement.get_predicate_term(), Copula.Inheritance);
+        }
+        else if (statement.get_subject_term() is AtomicTerm)
+        {
+            concretized_statement = new StatementTerm(Term.from_string(GetRandomBlockName()), statement.get_predicate_term(), Copula.Inheritance);
+        }
+        else
+        {
+            Debug.LogError("error");
+            return null;
+        }
+        return concretized_statement;
+    }
+
+
+    private string GetRandomBlockName()
+    {
+        int i = UnityEngine.Random.Range(0, BlocksWorld.numberOfBlocks);
+        return BlocksWorld.GetBlockName(i);
+    }
+
     public void MutatePersonalityParameters()
     {
         // tweakable: probability to *replace* a field instead of perturbing it
         const float CHANCE_TO_REPLACE_PARAM = 0.05f;
+        const float CHANCE_TO_TOGGLE_BOOL = 0.1f;
 
         const float CHANCE_TO_MUTATE = 0.6f;
 
@@ -811,9 +1151,15 @@ public class NARSGenome
         var timeProjectionGoalRange = GetTimeProjectionGoalRange();
         MutateFloat(ref this.personality_parameters.Time_Projection_Goal, timeProjectionGoalRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
 
-        // --- Generalization Confidence ---
-        var generalizationConfidenceRange = GetGeneralizationConfidenceRange();
-        MutateFloat(ref this.personality_parameters.Generalization_Confidence, generalizationConfidenceRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+        // --- Compound Confidence ---
+        var generalizationConfidenceRange = GetCompoundConfidenceRange();
+        MutateFloat(ref this.personality_parameters.Compound_Confidence, generalizationConfidenceRange, CHANCE_TO_REPLACE_PARAM, CHANCE_TO_MUTATE);
+
+        // flip compounding on/off
+        var compoundRange = GetRuntimeCompoundRange();
+        MutateBool(ref this.personality_parameters.RuntimeCompounds1, compoundRange, CHANCE_TO_TOGGLE_BOOL);
+        MutateBool(ref this.personality_parameters.RuntimeCompounds2, compoundRange, CHANCE_TO_TOGGLE_BOOL);
+        MutateBool(ref this.personality_parameters.RuntimeCompounds3, compoundRange, CHANCE_TO_TOGGLE_BOOL);
     }
 
 
@@ -868,17 +1214,17 @@ public class NARSGenome
         int rnd = UnityEngine.Random.Range(0, 3);
         if (rnd == 0)
         {
-        
+
             // replace S
             if (S is CompoundTerm sComp)
             {
                 // replace 1 part of the compound
                 List<Term> subterms = new();
-              
+
 
                 int rnd_subterm_idx = UnityEngine.Random.Range(0, sComp.subterms.Count);
 
-                if(sComp.subterms.Count == 2)
+                if (sComp.subterms.Count == 2)
                 {
                     if (rnd_subterm_idx == 0)
                     {
@@ -918,7 +1264,7 @@ public class NARSGenome
                     }
                 }
                 List<StatementTerm> ignore_subterms = new();
-                foreach(var t in subterms)
+                foreach (var t in subterms)
                 {
                     ignore_subterms.Add((StatementTerm)t);
                 }
@@ -936,7 +1282,7 @@ public class NARSGenome
             {
                 Debug.LogError("null");
                 return;
-            }        
+            }
         }
         else if (rnd == 1)
         {
@@ -1177,10 +1523,10 @@ public class NARSGenome
         NARSGenome parent2 = (NARSGenome)parent2genome;
         int longer_array = math.max(parent1.beliefs.Count, parent2.beliefs.Count);
 
-        NARSGenome offspring1 = new(); 
+        NARSGenome offspring1 = new();
         offspring1.beliefs.Clear();
         offspring1.belief_statement_strings.Clear();
-        NARSGenome offspring2 = new(); 
+        NARSGenome offspring2 = new();
         offspring2.beliefs.Clear();
         offspring2.belief_statement_strings.Clear();
 
@@ -1258,7 +1604,7 @@ public class NARSGenome
     {
         goals.Clear();
         List<(StatementTerm, float?, float?)> statement_strings = new();
-        foreach(var goal_statement in blocksworld.GetGoalStateNoClear(out var _))
+        foreach (var goal_statement in blocksworld.GetGoalStateNoClear(out var _))
         {
             statement_strings.Add((goal_statement, null, null));
         }
