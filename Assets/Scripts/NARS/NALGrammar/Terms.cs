@@ -432,7 +432,7 @@ public class VariableTerm : Term
             //Asserts.assert(false, "Error: Variable type symbol invalid");
         }
 
-        return new VariableTerm(variable_name, (VariableTerm.VariableType)type, dependency_list.ToArray());
+        return new VariableTerm(variable_name, (VariableTerm.VariableType)type, null);
     }
 
     public override int _calculate_syntactic_complexity()
@@ -519,7 +519,8 @@ public class CompoundTerm : Term
         }
         if(sub.Count != sub.Distinct().Count())
         {
-            UnityEngine.Debug.LogError("duplicate terms "+ subterms);
+            UnityEngine.Debug.LogWarning("duplicate terms "+ subterms);
+            //sub = sub.Distinct().ToList();
         }
         this.subterms = sub;
         this.connector = term_connector;

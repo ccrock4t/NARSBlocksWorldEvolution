@@ -95,6 +95,18 @@ public class BlocksWorldGridManager : MonoBehaviour
 
     private void Start()
     {
+        if(BlocksWorld.numberOfBlocks == 2)
+        {
+            episode_length = 35;
+        }
+        else if (BlocksWorld.numberOfBlocks == 3)
+        {
+            episode_length = 100;
+        }
+        else if (BlocksWorld.numberOfBlocks == 4)
+        {
+            episode_length = 200;
+        }
         hallOfFameTable = new(AnimatTable.SortingRule.sorted, AnimatTable.ScoreType.objective_fitness);
         recentTable = new(AnimatTable.SortingRule.unsorted, AnimatTable.ScoreType.objective_fitness);
         SpawnNewGeneration(true);

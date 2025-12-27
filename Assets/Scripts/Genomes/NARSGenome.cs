@@ -790,26 +790,26 @@ public class NARSGenome
         if (this.beliefs.Count == 0) return;
         int rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
         EvolvableSentence belief = this.beliefs[rnd_idx];
-        CompoundTerm SandM = (CompoundTerm)belief.statement.get_subject_term();
-        StatementTerm testS = (StatementTerm)SandM.subterms[0];
-        int cnt = 0;
-        while (!(testS.term_string.Contains("#x") || testS.term_string.Contains("block")))
-        {
-            rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
-            belief = this.beliefs[rnd_idx];
-            SandM = (CompoundTerm)belief.statement.get_subject_term();
-            testS = (StatementTerm)SandM.subterms[0];
-            cnt++;
-            if (cnt > this.beliefs.Count)
-            {
-                break;
-            }
-        }
+        //CompoundTerm SandM = (CompoundTerm)belief.statement.get_subject_term();
+        //StatementTerm testS = (StatementTerm)SandM.subterms[0];
+        //int cnt = 0;
+        //while (!(testS.term_string.Contains("#x") || testS.term_string.Contains("block")))
+        //{
+        //    rnd_idx = UnityEngine.Random.Range(0, this.beliefs.Count);
+        //    belief = this.beliefs[rnd_idx];
+        //    SandM = (CompoundTerm)belief.statement.get_subject_term();
+        //    testS = (StatementTerm)SandM.subterms[0];
+        //    cnt++;
+        //    if (cnt > this.beliefs.Count)
+        //    {
+        //        break;
+        //    }
+        //}
 
-        if (cnt > this.beliefs.Count)
-        {
-            return;
-        }
+        //if (cnt > this.beliefs.Count)
+        //{
+        //    return;
+        //}
 
         string old_statement_string = belief.statement.ToString();
 
@@ -823,7 +823,7 @@ public class NARSGenome
 
         Term S = (Term)subject.subterms[0];
         StatementTerm M = (StatementTerm)subject.subterms[1];
-
+        CompoundTerm M_subject = (CompoundTerm)M.get_subject_term();
         bool contains_var = implication.contains_variable();
 
         Term new_S;
@@ -832,20 +832,20 @@ public class NARSGenome
         if (contains_var)
         {
             //// turn from variable into concrete term
-            CompoundTerm M_subject;
-            if (M.subterms.Count == 2)
+            CompoundTerm new_M_subject;
+            if (M_subject.subterms.Count == 2)
             {
-                M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + ")");
+                new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + ")");
             }
-            else if (M.subterms.Count == 3)
+            else if (M_subject.subterms.Count == 3)
             {
-                if (M.subterms[1].contains_variable())
+                if (M_subject.subterms[1].contains_variable())
                 {
-                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + "," + M.subterms[2] + ")");
+                    new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + GetRandomBlockName() + "," + M_subject.subterms[2] + ")");
                 }
-                else if (M.subterms[2].contains_variable())
+                else if (M_subject.subterms[2].contains_variable())
                 {
-                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M.subterms[1] + "," + GetRandomBlockName() + ")");
+                    new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M_subject.subterms[1] + "," + GetRandomBlockName() + ")");
                 }
                 else
                 {
@@ -859,7 +859,7 @@ public class NARSGenome
                 Debug.LogError("error");
                 return;
             }
-            new_M = new StatementTerm(M_subject, M.get_predicate_term(), Copula.Inheritance);
+            new_M = new StatementTerm(new_M_subject, M.get_predicate_term(), Copula.Inheritance);
 
             if (S is StatementTerm sStatement)
             {
@@ -920,27 +920,27 @@ public class NARSGenome
         else
         {
             //// turn from concrete term into variable
-            CompoundTerm M_subject;
-            if (M.subterms.Count == 2)
+            CompoundTerm new_M_subject;
+            if (M_subject.subterms.Count == 2)
             {
-                M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x)");
+                new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x)");
             }
-            else if (M.subterms.Count == 3)
+            else if (M_subject.subterms.Count == 3)
             {
-                int RND = UnityEngine.Random.Range(0, 2);
-                if (RND == 0)
-                {
-                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x," + M.subterms[2] + ")");
-                }
-                else if(RND == 1)
-                {
-                    M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M.subterms[1] + ",#x)");
-                }
-                else
-                {
-                    Debug.LogError("error");
-                    return;
-                }
+                //int RND = UnityEngine.Random.Range(0, 2);
+                //if (RND == 0)
+                //{
+                    new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF},#x," + M_subject.subterms[2] + ")");
+                //}
+                //else if(RND == 1)
+                //{
+                //    new_M_subject = (CompoundTerm)Term.from_string("(*,{SELF}," + M_subject.subterms[1] + ",#x)");
+                //}
+                //else
+                //{
+                //    Debug.LogError("error");
+                //    return;
+                //}
                 
             }
             else
@@ -949,7 +949,7 @@ public class NARSGenome
                 return;
             }
 
-            new_M = new StatementTerm(M_subject, M.get_predicate_term(), Copula.Inheritance);
+            new_M = new StatementTerm(new_M_subject, M.get_predicate_term(), Copula.Inheritance);
 
 
             if (S is StatementTerm sStatement)
@@ -1038,7 +1038,7 @@ public class NARSGenome
         if (statement.get_subject_term() is CompoundTerm c)
         {
             // e.g., <(*,A,B) --> On>
-            int rnd_subterm_idx = UnityEngine.Random.Range(0, c.subterms.Count);
+            int rnd_subterm_idx = 0;// UnityEngine.Random.Range(0, c.subterms.Count);
             List<Term> new_subterms = new();
             for(int i=0; i<c.subterms.Count; i++)
             {
@@ -1088,7 +1088,7 @@ public class NARSGenome
             CompoundTerm new_subject = TermHelperFunctions.TryGetCompoundTerm(new_subterms, (TermConnector)c.connector);
             concretized_statement = new StatementTerm(new_subject, statement.get_predicate_term(), Copula.Inheritance);
         }
-        else if (statement.get_subject_term() is AtomicTerm)
+        else if (statement.get_subject_term() is VariableTerm)
         {
             concretized_statement = new StatementTerm(Term.from_string(GetRandomBlockName()), statement.get_predicate_term(), Copula.Inheritance);
         }
